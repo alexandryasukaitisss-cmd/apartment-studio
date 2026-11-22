@@ -6,11 +6,11 @@
 
 ![Apartment Studio 2D demo plan](docs/demo.png)
 
-The demo runs the planner entirely in the browser. Product URL import needs the local server; offline HTML/text import and project JSON import work without it.
+Apartment Studio helps you plan a renovation in the browser. Start with a demo apartment or import your own JSON project, then walk through a 2D plan and a 3D view, try wall and floor finishes, place furniture, mark doors, windows, sockets, and get a material and work estimate.
 
-A local, browser-based renovation planner. Start from a demo apartment or import your own JSON project, then work with a 2D plan, a 3D scene, a walk-through camera, finishes, furniture, openings, electrical and engineering layers, and a material/works estimate.
+Everything stays on your device. There is no account, cloud sync, or telemetry.
 
-Everything stays on the device. There is no account, cloud sync, or telemetry.
+The demo runs entirely in the browser. Product URL import needs the local server; offline HTML/text import and project JSON import work without it.
 
 Version 0.1.0. MIT.
 
