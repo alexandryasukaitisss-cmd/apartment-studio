@@ -387,7 +387,7 @@ export default function Inspector({ project, variant, roomId, furnitureId, mutat
       <p className="small-note">{conflicts.length ? `Предметы пересекаются: ${[...new Set(conflicts.flatMap(o => [o.a, o.b]).map(f => kindNames[f.kind]))].join(', ')}. На плане они обведены красным.` : 'Пересечений мебели нет. Предметы можно ставить вплотную.'}</p>
       {swingBlocks.length > 0 && <p className="small-note">Дуга открывания двери задевает мебель или соседнюю дверь. Проверьте сторону открывания и петли ниже.</p>}
       {passages.length > 0 && <p className="small-note">Узкий проход (&lt; 50 см): {passages.map(w => `${kindNames[w.a.kind]} ↔ ${kindNames[w.b.kind]} (${Math.round(w.clearanceM * 100)} см)`).join(', ')}.</p>}
-      <p className="small-note">Размеры восстановлены по фото и площадям. Сверьте их с обмером до заказа материалов.</p>
+      <p className="small-note">Размеры демо-квартиры приблизительные. Сверьте их с обмером до заказа материалов.</p>
       <NumberField label="Масштаб квартиры" value={project.scale * 100} min={50} max={200} unit="%" onChange={v => mutate(p => {
         p.scale = v / 100;
         for (const vr of p.variants)

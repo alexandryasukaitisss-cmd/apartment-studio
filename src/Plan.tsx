@@ -276,7 +276,7 @@ export default function Plan({ project, variant, selectedRoom, selectedFurniture
       <text x={maxX / 2} y={maxZ + .75} textAnchor="middle" className="dimension-label">
         ≈
         {(maxX * project.scale).toFixed(2)}
-        м · реконструкция по фото
+        м · демо-планировка
       </text>
     </>}
   </svg>
