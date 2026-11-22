@@ -1,5 +1,11 @@
 # Apartment Studio
 
+[![ci](https://github.com/alexandryasukaitisss-cmd/apartment-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/alexandryasukaitisss-cmd/apartment-studio/actions/workflows/ci.yml)
+
+**Живое демо:** <https://alexandryasukaitisss-cmd.github.io/apartment-studio/>
+
+Демо работает полностью в браузере. Импорту по URL товара нужен локальный сервер; офлайн-импорт HTML/текста и импорт JSON проекта работают без него.
+
 Локальный браузерный планировщик ремонта. Начните с демо-квартиры или импортируйте свой JSON-проект, затем работайте с планом 2D, сценой 3D, прогулкой, отделкой, мебелью, проёмами, электрикой, инженерией и сметой материалов и работ.
 
 Всё остаётся на устройстве. Нет аккаунта, облачной синхронизации и телеметрии.

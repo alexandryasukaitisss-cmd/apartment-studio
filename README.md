@@ -1,5 +1,11 @@
 # Apartment Studio
 
+[![ci](https://github.com/alexandryasukaitisss-cmd/apartment-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/alexandryasukaitisss-cmd/apartment-studio/actions/workflows/ci.yml)
+
+**Live demo:** <https://alexandryasukaitisss-cmd.github.io/apartment-studio/>
+
+The demo runs the planner entirely in the browser. Product URL import needs the local server; offline HTML/text import and project JSON import work without it.
+
 A local, browser-based renovation planner. Start from a demo apartment or import your own JSON project, then work with a 2D plan, a 3D scene, a walk-through camera, finishes, furniture, openings, electrical and engineering layers, and a material/works estimate.
 
 Everything stays on the device. There is no account, cloud sync, or telemetry.
