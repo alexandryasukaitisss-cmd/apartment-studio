@@ -4,7 +4,7 @@
 
 **Live demo:** <https://alexandryasukaitisss-cmd.github.io/apartment-studio/>
 
-![Apartment Studio 2D demo plan](docs/demo.png)
+![Apartment Studio 2D plan, 3D volume, walkthrough, and cost estimate tour](docs/demo-tour.gif)
 
 Apartment Studio helps you plan a renovation in the browser. Start with a demo apartment or import your own JSON project, then walk through a 2D plan and a 3D view, try wall and floor finishes, place furniture, mark doors, windows, sockets, and get a material and work estimate.
 
