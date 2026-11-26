@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Home, BedDouble, Sofa, Bath, DoorOpen, Shirt, Grid2X2, Save, Undo2, Redo2, Copy,
-  Download, Upload, PanelLeft, SlidersHorizontal, Mouse, Info, ArrowUp, ArrowDown,
+  Download, Upload, PanelLeft, PanelRight, SlidersHorizontal, Mouse, ArrowUp, ArrowDown,
   ArrowLeft, ArrowRight, Maximize2, CircleHelp, Ruler, User, Compass, Layers,
   Columns2, Play, Square, BookmarkPlus, LayoutTemplate,
 } from 'lucide-react';
@@ -79,6 +79,8 @@ export default function App() {
   const [status, setStatus] = useState('Загрузка…');
   const [notice, setNotice] = useState<{ text: string; error: boolean } | null>(null);
   const [mobile, setMobile] = useState<'rooms' | 'settings' | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
   const [variantDialog, setVariantDialog] = useState(false);
   const [onboarding, setOnboarding] = useState(() => {
     try { return localStorage.getItem('apartment-studio-onboarding-1') !== 'done' } catch { return false }
@@ -370,6 +372,14 @@ export default function App() {
         e.preventDefault();
         if (e.shiftKey) redo(); else undo();
       }
+      if (!e.metaKey && !e.ctrlKey && !e.altKey && (e.key === '[' || e.code === 'BracketLeft')) {
+        e.preventDefault();
+        setSidebarCollapsed(v => !v);
+      }
+      if (!e.metaKey && !e.ctrlKey && !e.altKey && (e.key === ']' || e.code === 'BracketRight')) {
+        e.preventDefault();
+        setInspectorCollapsed(v => !v);
+      }
       if (e.key === 'Escape') {
         setAutoTour(false);
         setElevationOpen(false);
@@ -402,6 +412,7 @@ export default function App() {
     setElectricalId(null);
     setEngineeringId(null);
     setSurfaceSelection(previous => ({ surface, ...(wallIndex !== undefined ? { wallIndex } : {}), request: (previous?.request ?? 0) + 1 }));
+    setInspectorCollapsed(false);
     setMobile('settings');
   };
   const openContextMenu = (target: SceneContextTarget) => {
@@ -410,7 +421,10 @@ export default function App() {
     contextRef.current = target;
     setContextTarget(target);
   };
-  const focusInspector = () => requestAnimationFrame(() => inspectorShell.current?.focus());
+  const focusInspector = () => {
+    setInspectorCollapsed(false);
+    requestAnimationFrame(() => inspectorShell.current?.focus());
+  };
   const configureContextFurniture = () => {
     if (!contextTarget || !validContextTarget(projectRef.current, contextTarget) || !contextTarget.furnitureId) return;
     setRoomId(contextTarget.roomId);
@@ -428,6 +442,7 @@ export default function App() {
     }
     let newId = '';
     if (!mutate(p => { newId = addFurnitureAt(p, contextTarget.roomId, contextTarget.x, contextTarget.z, preset).id })) return false;
+    setStage('furnished');
     setRoomId(contextTarget.roomId);
     selectFurniture(newId);
     setFurnitureSelection(request => request + 1);
@@ -496,7 +511,16 @@ export default function App() {
   return <div className="app">
     <header className="header">
       <div className="brand">
-        <Home size={32} strokeWidth={1.8} />
+        <button
+          className={`icon-button panel-toggle-btn ${!sidebarCollapsed ? 'panel-open' : ''}`}
+          aria-label={sidebarCollapsed ? 'Показать панель помещений' : 'Скрыть панель помещений'}
+          aria-expanded={!sidebarCollapsed}
+          title={sidebarCollapsed ? 'Показать помещения ([)' : 'Скрыть помещения ([)'}
+          onClick={() => setSidebarCollapsed(v => !v)}
+        >
+          <PanelLeft size={16} />
+        </button>
+        <Home size={20} strokeWidth={1.75} />
         <h1>Квартира</h1>
         <div className="project-subtitle">{project.name} · демо</div>
       </div>
@@ -512,9 +536,6 @@ export default function App() {
         </button>)}
       </nav>
       <div className="header-actions">
-        <button className="icon-button help-button" aria-label="Как пользоваться" title="Как пользоваться" onClick={() => setOnboarding(true)}>
-          <CircleHelp size={18} />
-        </button>
         <select className="variant-select" aria-label="Вариант дизайна" value={project.activeVariantId} onChange={e => {
           if (mutate(p => { p.activeVariantId = e.target.value })) {
             setFurnitureId(null);
@@ -523,29 +544,41 @@ export default function App() {
         }}>
           {project.variants.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
         </select>
+        <button className="icon-button help-button" aria-label="Как пользоваться" title="Как пользоваться" onClick={() => setOnboarding(true)}>
+          <CircleHelp size={16} />
+        </button>
+        <button
+          className={`icon-button panel-toggle-btn ${!inspectorCollapsed ? 'panel-open' : ''}`}
+          aria-label={inspectorCollapsed ? 'Показать инспектор настроек' : 'Скрыть инспектор настроек'}
+          aria-expanded={!inspectorCollapsed}
+          title={inspectorCollapsed ? 'Показать инспектор (])' : 'Скрыть инспектор (])'}
+          onClick={() => setInspectorCollapsed(v => !v)}
+        >
+          <PanelRight size={16} />
+        </button>
         <button className="save-button primary" aria-label="Сохранить проект" onClick={() => void save()}>
-          <Save size={16} />
+          <Save size={15} />
           <span>Сохранить</span>
         </button>
       </div>
     </header>
     <div className="mobile-bar">
       <button onClick={() => setMobile(mobile === 'rooms' ? null : 'rooms')}>
-        <PanelLeft size={17} />
+        <PanelLeft size={16} />
         Помещения
       </button>
       <span>{project.rooms.find(r => r.id === roomId)!.name}</span>
       <button onClick={() => setMobile(mobile === 'settings' ? null : 'settings')}>
-        <SlidersHorizontal size={17} />
+        <SlidersHorizontal size={16} />
         Настройки
       </button>
     </div>
-    <main className="workspace">
+    <main className={`workspace ${sidebarCollapsed ? 'sidebar-collapsed' : ''} ${inspectorCollapsed ? 'inspector-collapsed' : ''}`}>
       <aside className={`room-sidebar ${mobile === 'rooms' ? 'mobile-open' : ''}`}>
         <div className="sidebar-title">
           <h2>Помещения</h2>
-          <button className="icon-button" aria-label="Открыть размеры" title="План и размеры" onClick={() => { setMode('2d'); setInspectorTab({ tab: 'sizes', request: Date.now() }); }}>
-            <Maximize2 size={17} />
+          <button className="icon-button" aria-label="Открыть размеры" title="План и размеры" onClick={() => { setMode('2d'); setInspectorCollapsed(false); setInspectorTab({ tab: 'sizes', request: Date.now() }); }}>
+            <Maximize2 size={15} />
           </button>
         </div>
         <div className="rooms-list">
@@ -604,85 +637,123 @@ export default function App() {
         </small>
       </aside>
       <section ref={sceneRegion} tabIndex={-1} className="canvas-region" aria-label="Визуализатор квартиры">
-        <div className="canvas-toolbar">
-          <div className="undo-tools">
-            <button className="icon-button" aria-label="Отменить" title="Отменить ⌘Z" disabled={!history.current.past.length} onClick={undo}>
-              <Undo2 size={18} />
-            </button>
-            <button className="icon-button" aria-label="Повторить" title="Повторить ⇧⌘Z" disabled={!history.current.future.length} onClick={redo}>
-              <Redo2 size={18} />
-            </button>
+        <div className="canvas-top-stack">
+          <div className="canvas-toolbar">
+            <div className="undo-tools">
+              <button className="icon-button" aria-label="Отменить" title="Отменить ⌘Z" disabled={!history.current.past.length} onClick={undo}>
+                <Undo2 size={17} />
+              </button>
+              <button className="icon-button" aria-label="Повторить" title="Повторить ⇧⌘Z" disabled={!history.current.future.length} onClick={redo}>
+                <Redo2 size={17} />
+              </button>
+            </div>
+            {mode !== '2d' && <label className="image-quality toolbar-select" title="Стадия готовности ремонта в 3D">
+              <Layers size={13} />
+              <select aria-label="Стадия ремонта" value={stage} onChange={e => {
+                const next = e.target.value as RenovationStage;
+                setStage(next);
+                if (next === 'rough') {
+                  setElectricalVisible(true);
+                  setEngineeringVisible(true);
+                }
+              }}>
+                {(Object.entries(stageLabels) as [RenovationStage, string][]).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+              </select>
+            </label>}
+            {mode !== '2d' && <div className="viewpoint-tools">
+              <select className="viewpoint-select" aria-label="Готовые ракурсы" value="" onChange={e => {
+                const val = e.target.value;
+                if (!val) return;
+                setAutoTour(false);
+                const presetView = roomViews.find(v => v.id === val);
+                if (presetView) { jumpToPresetView(presetView); return; }
+                const savedView = variant.savedViews?.find(v => v.id === val);
+                if (savedView) jumpToSavedView(savedView);
+              }}>
+                <option value="" disabled>Ракурсы…</option>
+                {roomViews.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                {(variant.savedViews?.length ?? 0) > 0 && <optgroup label="Мои сохранённые">
+                  {variant.savedViews!.map(sv => <option key={sv.id} value={sv.id}>★ {sv.name}</option>)}
+                </optgroup>}
+              </select>
+              <button className="fit-view" title="Сохранить текущий ракурс камеры" onClick={saveCurrentView}>
+                <BookmarkPlus size={14} />
+              </button>
+              <button className={`fit-view ${autoTour ? 'active-tool' : ''}`} aria-pressed={autoTour} title="Авто-тур по комнатам квартиры" onClick={() => setAutoTour(v => !v)}>
+                {autoTour ? <Square size={13} /> : <Play size={13} />}
+                Тур
+              </button>
+            </div>}
+            <div className="toolbar-pill-group">
+              <button className={`fit-view ${hasHumanInRoom ? 'active-tool' : ''}`} title="Поставить или убрать фигуру человека ростом 186 см для оценки масштаба" onClick={toggleHuman186}>
+                <User size={14} />
+                186 см
+              </button>
+              <button className={`fit-view ${lifeZonesVisible ? 'active-tool' : ''}`} aria-pressed={lifeZonesVisible} title="Показать рабочие зоны: открывание шкафов и техники, стулья, конус ТВ" onClick={() => setLifeZonesVisible(v => !v)}>
+                <Compass size={14} />
+                Зоны
+              </button>
+              <button className="fit-view" title="Открыть 2D-развёртку стен с точными высотами розеток и мебели" onClick={() => setElevationOpen(true)}>
+                <LayoutTemplate size={14} />
+                Развёртка
+              </button>
+              {mode === '3d' && <button className="fit-view" title="Вписать всю квартиру в кадр" onClick={() => window.dispatchEvent(new Event('apartment-fit'))}>
+                <Maximize2 size={14} />
+                Вписать
+              </button>}
+            </div>
+            {(mode === 'walk' || mode === 'split') && <div className="ceiling-view-controls">
+              <button aria-label="Уровень глаз" title="Переключить высоту глаз камеры (рост 186 см → глаза 174 см)" onClick={() => setWalkEyeHeight(h => Math.abs(h - HUMAN_EYE_HEIGHT_M) < .05 ? 1.6 : HUMAN_EYE_HEIGHT_M)}>
+                {Math.abs(walkEyeHeight - HUMAN_EYE_HEIGHT_M) < .05 ? '👁 174 см' : '👁 160 см'}
+              </button>
+              <button aria-label="Осмотреть потолок" title="Посмотреть вверх без перемещения камеры" onClick={() => window.dispatchEvent(new CustomEvent('apartment-look', { detail: 'ceiling' }))}>↑ Потолок</button>
+              <button aria-label="Смотреть прямо" title="Вернуть горизонтальный взгляд" onClick={() => window.dispatchEvent(new CustomEvent('apartment-look', { detail: 'forward' }))}>↔ Прямо</button>
+            </div>}
+            {(mode === '2d' || mode === 'split') && <div className="plan-layer-tools">
+              <button className={`fit-view ${measureMode ? 'active-tool' : ''}`} aria-pressed={measureMode} title="Измерить расстояние между двумя точками на плане" onClick={() => setMeasureMode(v => !v)}>
+                <Ruler size={14} />
+                Линейка
+              </button>
+              <label className="electrical-layer-toggle"><input type="checkbox" checked={electricalVisible} onChange={e => { setElectricalVisible(e.target.checked); if (!e.target.checked) setElectricalId(null) }} />Электрика</label>
+              <label className="electrical-layer-toggle"><input type="checkbox" checked={engineeringVisible} onChange={e => { setEngineeringVisible(e.target.checked); if (!e.target.checked) setEngineeringId(null) }} />Инженерия</label>
+              <label className="electrical-layer-toggle"><input type="checkbox" checked={auditOverlayVisible} onChange={e => { setAuditOverlayVisible(e.target.checked); if (!e.target.checked) setDeliveryHighlightId(null); }} />Аудит</label>
+            </div>}
+            {mode !== '2d' && <label className="image-quality" title="Качество теней и сглаживания 3D">
+              <select aria-label="Качество изображения" value={quality} onChange={e => setQuality(e.target.value as 'balanced' | 'high')}>
+                <option value="balanced">Качество: среднее</option>
+                <option value="high">Качество: высокое</option>
+              </select>
+            </label>}
           </div>
-          {mode !== '2d' && <label className="image-quality toolbar-select">
-            <Layers size={13} />
-            <select aria-label="Стадия ремонта" value={stage} onChange={e => setStage(e.target.value as RenovationStage)}>
-              {(Object.entries(stageLabels) as [RenovationStage, string][]).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
-            </select>
-          </label>}
-          {mode !== '2d' && <div className="viewpoint-tools">
-            <select className="viewpoint-select" aria-label="Готовые ракурсы" value="" onChange={e => {
-              const val = e.target.value;
-              if (!val) return;
-              setAutoTour(false);
-              const presetView = roomViews.find(v => v.id === val);
-              if (presetView) { jumpToPresetView(presetView); return; }
-              const savedView = variant.savedViews?.find(v => v.id === val);
-              if (savedView) jumpToSavedView(savedView);
-            }}>
-              <option value="" disabled>Ракурсы комнаты…</option>
-              {roomViews.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-              {(variant.savedViews?.length ?? 0) > 0 && <optgroup label="Мои сохранённые">
-                {variant.savedViews!.map(sv => <option key={sv.id} value={sv.id}>★ {sv.name}</option>)}
-              </optgroup>}
-            </select>
-            <button className="fit-view" title="Сохранить текущий ракурс камеры" onClick={saveCurrentView}>
-              <BookmarkPlus size={14} />
-            </button>
-            <button className={`fit-view ${autoTour ? 'active-tool' : ''}`} aria-pressed={autoTour} title="Авто-тур по комнатам квартиры" onClick={() => setAutoTour(v => !v)}>
-              {autoTour ? <Square size={13} /> : <Play size={13} />}
-              Тур
-            </button>
+
+          {mode !== '2d' && stage !== 'furnished' && <div className="stage-banner">
+            <span>{`Показана стадия «${stageLabels[stage]}» — мебель скрыта для осмотра стен и инженерии.`}</span>
+            <button onClick={() => setStage('furnished')}>Вернуть мебель</button>
           </div>}
-          <button className={`fit-view ${hasHumanInRoom ? 'active-tool' : ''}`} title="Поставить или убрать фигуру человека ростом 186 см для оценки масштаба" onClick={toggleHuman186}>
-            <User size={14} />
-            186 см
-          </button>
-          <button className={`fit-view ${lifeZonesVisible ? 'active-tool' : ''}`} aria-pressed={lifeZonesVisible} title="Показать рабочие зоны: открывание шкафов и техники, стулья, конус ТВ" onClick={() => setLifeZonesVisible(v => !v)}>
-            <Compass size={14} />
-            Зоны
-          </button>
-          <button className="fit-view" title="Открыть 2D-развёртку стен с точными высотами розеток и мебели" onClick={() => setElevationOpen(true)}>
-            <LayoutTemplate size={14} />
-            Развёртка
-          </button>
-          {mode === '3d' && <button className="fit-view" onClick={() => window.dispatchEvent(new Event('apartment-fit'))}>
-            <Maximize2 size={14} />
-            Вписать
-          </button>}
-          {(mode === 'walk' || mode === 'split') && <div className="ceiling-view-controls">
-            <button aria-label="Уровень глаз" title="Переключить высоту глаз камеры (рост 186 см → глаза 174 см)" onClick={() => setWalkEyeHeight(h => Math.abs(h - HUMAN_EYE_HEIGHT_M) < .05 ? 1.6 : HUMAN_EYE_HEIGHT_M)}>
-              {Math.abs(walkEyeHeight - HUMAN_EYE_HEIGHT_M) < .05 ? '👁 174 см (186)' : '👁 160 см'}
-            </button>
-            <button aria-label="Осмотреть потолок" title="Посмотреть вверх без перемещения камеры" onClick={() => window.dispatchEvent(new CustomEvent('apartment-look', { detail: 'ceiling' }))}>↑ Потолок</button>
-            <button aria-label="Смотреть прямо" title="Вернуть горизонтальный взгляд" onClick={() => window.dispatchEvent(new CustomEvent('apartment-look', { detail: 'forward' }))}>↔ Прямо</button>
+
+          {(mode === '2d' || mode === 'split') && (lifeZonesVisible || auditOverlayVisible || electricalVisible || engineeringVisible) && <div className="plan-legend-bar" aria-label="Легенда активных слоёв">
+            {lifeZonesVisible && <>
+              <span><i style={{ background: '#d97706' }} />Открывание дверец</span>
+              <span><i style={{ background: '#2f7a62' }} />Стулья</span>
+              <span><i style={{ background: '#2563eb' }} />Конус ТВ</span>
+            </>}
+            {electricalVisible && <span><b>Р / В / С / И / Т</b> Розетка · Выключатель · Свет · Интернет · Техника</span>}
+            {engineeringVisible && <span><b>Ст / Б / К</b> Стояк · Радиатор · Кондиционер · <i style={{ background: '#e67e22' }} />Тёплый пол</span>}
+            {auditOverlayVisible && <>
+              <span><i style={{ background: '#9b6633' }} />Грязная зона</span>
+              <span><i style={{ background: '#2c6b94' }} />Уклон канализации</span>
+              {deliveryHighlightId && <span><i style={{ background: '#1f7a54' }} />Маршрут заноса</span>}
+            </>}
           </div>}
-          {mode !== '2d' && <label className="image-quality">Качество<select aria-label="Качество изображения" value={quality} onChange={e => setQuality(e.target.value as 'balanced' | 'high')}><option value="balanced">Сбалансированное</option><option value="high">Высокое</option></select></label>}
-          {(mode === '2d' || mode === 'split') && <div className="plan-layer-tools">
-            <button className={`fit-view ${measureMode ? 'active-tool' : ''}`} aria-pressed={measureMode} title="Измерить расстояние между двумя точками на плане" onClick={() => setMeasureMode(v => !v)}>
-              <Ruler size={14} />
-              Линейка
-            </button>
-            <label className="electrical-layer-toggle"><input type="checkbox" checked={electricalVisible} onChange={e => { setElectricalVisible(e.target.checked); if (!e.target.checked) setElectricalId(null) }} />Электрика</label>
-            <label className="electrical-layer-toggle"><input type="checkbox" checked={engineeringVisible} onChange={e => { setEngineeringVisible(e.target.checked); if (!e.target.checked) setEngineeringId(null) }} />Инженерия</label>
-            <label className="electrical-layer-toggle"><input type="checkbox" checked={auditOverlayVisible} onChange={e => { setAuditOverlayVisible(e.target.checked); if (!e.target.checked) setDeliveryHighlightId(null); }} />Аудит</label>
+
+          {selected && mode !== 'walk' && (mode === '2d' || stage === 'furnished') && <div className="selected-object-bar">
+            <strong>{`${selected.label || kindNames[selected.kind]} · ${Math.round(selected.width * 100)} × ${Math.round(selected.depth * 100)} × ${Math.round(selected.height * 100)} см`}</strong>
+            <ObjectActions key={selected.id} selected={selected} {...objectActions} />
           </div>}
-          <span className="approx-label">
-            <Info size={13} />
-            Размеры приблизительные
-          </span>
         </div>
+
         {compareOpen ? <div className="compare-placeholder">Режим сравнения вариантов открыт…</div> : mode === '2d' ? <div className="plan-stage">
-          <Plan project={activeProject} variant={activeVariant} selectedRoom={roomId} selectedFurniture={furnitureId} onSelect={select} onFurniture={selectFurniture} electricalVisible={electricalVisible} selectedElectrical={electricalId} onElectrical={selectElectrical} engineeringVisible={engineeringVisible} selectedEngineering={engineeringId} onEngineering={selectEngineering} lifeZonesVisible={lifeZonesVisible} auditOverlayVisible={auditOverlayVisible} deliveryHighlightId={deliveryHighlightId} measureMode={measureMode} onDragStart={() => { dragging.current = true }} onDrag={previewDrag} onDragEnd={finishDrag} onDragCancel={cancelDrag} />
+          <Plan project={activeProject} variant={activeVariant} selectedRoom={roomId} selectedFurniture={furnitureId} onSelect={select} onEnterRoom={id => { select(id); setMode('split'); }} onFurniture={selectFurniture} electricalVisible={electricalVisible} selectedElectrical={electricalId} onElectrical={selectElectrical} engineeringVisible={engineeringVisible} selectedEngineering={engineeringId} onEngineering={selectEngineering} lifeZonesVisible={lifeZonesVisible} auditOverlayVisible={auditOverlayVisible} deliveryHighlightId={deliveryHighlightId} measureMode={measureMode} onDragStart={() => { dragging.current = true }} onDrag={previewDrag} onDragEnd={finishDrag} onDragCancel={cancelDrag} />
         </div> : mode === 'split' ? <div className="split-stage">
           <div className="split-pane split-plan">
             <Plan project={activeProject} variant={activeVariant} selectedRoom={roomId} selectedFurniture={furnitureId} onSelect={select} onFurniture={selectFurniture} electricalVisible={electricalVisible} selectedElectrical={electricalId} onElectrical={selectElectrical} engineeringVisible={engineeringVisible} selectedEngineering={engineeringId} onEngineering={selectEngineering} lifeZonesVisible={lifeZonesVisible} auditOverlayVisible={auditOverlayVisible} deliveryHighlightId={deliveryHighlightId} cameraPose={cameraPose} measureMode={measureMode} onDragStart={() => { dragging.current = true }} onDrag={previewDrag} onDragEnd={finishDrag} onDragCancel={cancelDrag} />
@@ -696,15 +767,11 @@ export default function App() {
           closeContextMenu();
           focusInspector();
         }} />}
-        {selected && mode !== 'walk' && <div className="selected-object-bar">
-          <strong>{kindNames[selected.kind]} · выбран</strong>
-          <ObjectActions key={selected.id} selected={selected} {...objectActions} />
-        </div>}
         <div className="canvas-bottom">
           <div className="canvas-help">
             <Mouse size={18} />
             <span>
-              {mode === 'walk' ? 'Клик по мини-плану слева переносит камеру · потяните — взгляд · WASD — шаг · Esc — выйти' : mode === 'split' ? 'Слева — план 2D с конусом камеры, справа — вид глазами человека (186 см)' : mode === '3d' ? 'Потяните — вращение · выберите предмет и потяните по полу — переместить · клик по стене — акцентная отделка' : measureMode ? 'Режим линейки: кликните или протяните между двумя точками · Esc — выйти' : 'Потяните предмет или точку — переместить · Option/Alt — без привязки · Delete — удалить · ⌘Z — отменить'}
+              {mode === 'walk' ? 'Клик по мини-плану слева переносит камеру · потяните — взгляд · WASD — шаг · Esc — выйти' : mode === 'split' ? 'Слева — план 2D с конусом камеры, справа — вид глазами человека (186 см)' : mode === '3d' ? 'Потяните — вращение · выберите предмет и потяните по полу — переместить · клик по стене — акцентная отделка' : measureMode ? 'Режим линейки: кликните или протяните между двумя точками · Esc — выйти' : 'Двойной клик по комнате — вход в 2D + 3D · потяните предмет — сдвиг (Option/Alt без привязки) · ⌘Z — отменить'}
             </span>
           </div>
           <div className="day-switch compact">
@@ -785,15 +852,17 @@ export default function App() {
           }}
           onOpenCompare={openCompare}
           onPreviewStage={nextStage => {
-            setStage(nextStage);
-            if (mode === '2d') setMode('3d');
-            notify(`Показана стадия: ${stageLabels[nextStage]}`);
+            if (stage !== nextStage) {
+              setStage(nextStage);
+              if (mode === '2d') setMode('3d');
+              notify(`Показана стадия: ${stageLabels[nextStage]}`);
+            }
           }}
-          onOpenElectrical={() => { if (mode !== 'split') setMode('2d'); setElectricalVisible(true); setFurnitureId(null) }}
+          onOpenElectrical={() => { setElectricalVisible(true); setFurnitureId(null); }}
           electrical={{
             project, variant, roomId, pointId: electricalId, visible: electricalVisible, mutate,
             onSelect: selectElectrical,
-            onVisible: visible => { setElectricalVisible(visible); if (visible && mode !== 'split') setMode('2d'); else if (!visible) setElectricalId(null) },
+            onVisible: visible => { setElectricalVisible(visible); if (!visible) setElectricalId(null); },
             onDelete: removeSelected,
             onDuplicate: () => {
               let newId = '';
@@ -803,7 +872,7 @@ export default function App() {
               itemId: engineeringId,
               visible: engineeringVisible,
               onSelect: selectEngineering,
-              onVisible: visible => { setEngineeringVisible(visible); if (visible && mode !== 'split') setMode('2d'); else if (!visible) setEngineeringId(null); }
+              onVisible: visible => { setEngineeringVisible(visible); if (!visible) setEngineeringId(null); }
             }
           }}
         />
@@ -819,7 +888,7 @@ export default function App() {
       setMobile('settings');
       setInspectorTab({ tab: 'sizes', request: Date.now() });
     }} />}
-    {elevationOpen && <WallElevation project={project} variant={variant} roomId={roomId} initialWallIndex={surfaceSelection?.wallIndex} onClose={() => setElevationOpen(false)} />}
+    {elevationOpen && <WallElevation project={project} variant={variant} roomId={roomId} initialWallIndex={surfaceSelection?.wallIndex} onSelectRoom={select} onClose={() => setElevationOpen(false)} />}
     {compareOpen && <VariantCompare project={project} roomId={roomId} stage={stage} onClose={() => setCompareOpen(false)} />}
     {variantDialog && <div className="dialog-backdrop" onClick={() => setVariantDialog(false)}>
       <section className="dialog" role="dialog" aria-modal="true" aria-labelledby="variant-title" onClick={e => e.stopPropagation()}>

@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import NumberField from './NumberField';
 import { Upload, Plus, ExternalLink, FileCode, Box, Sparkles } from 'lucide-react';
 import { type Project, type Variant, type Surface, type Furniture, type Kind, type Material, type MaterialQuote, type WorkRates, type RenovationStage, type RoadmapStatus, id, makeFurniture, center, boundFurniture, area, roomSize, resizeRoom, setCeilingHeight, setupOffice, doorwayObstructions, minimumFurnitureHeight, addElectricalPoint, MAX_ELECTRICAL_POINTS, furnitureOverlaps, moveFurnitureToRoom, passageWarnings, wallMaterialId, wallOverrideKey } from './model';
 import { materialImage } from './textures';
 import { lampBudget } from './sceneLighting';
 import { importPhoto } from './storage';
-import { catalog, kindNames } from './furnitureCatalog';
+import { catalog, catalogGroups, kindNames } from './furnitureCatalog';
 import ObjectActions, { type ObjectActionHandlers } from './ObjectActions';
 import ElectricalControls, { type ElectricalControlsProps } from './ElectricalControls';
 import EstimatePanel, { QuoteFields } from './EstimatePanel';
@@ -15,6 +15,7 @@ import { roomWalls, wallTitle } from './openings';
 import { defaultPresetForRoom, doorSwingConflicts, furnitureCoordsFromRoomOffset, furnitureRoomClearances, materialSurfaces, measurementChecklistItems, roomAccusative, smartMaterialSurface } from './roomMeasures';
 import { applyStylePreset, stylePresets } from './stylePresets';
 import { saveCustomModel } from './customModels';
+import { runLayoutAudit } from './layoutAudit';
 import AuditPanel from './AuditPanel';
 import AgentPanel from './AgentPanel';
 export { catalog, kindNames } from './furnitureCatalog';
@@ -45,6 +46,8 @@ export default function Inspector({ project, variant, roomId, furnitureId, mutat
   const roomLampCount = variant.electrical.points.filter(point => point.roomId === roomId && point.type === 'light').length;
   const selected = variant.furniture.find(f => f.id === furnitureId);
   const selectedClearances = selected ? furnitureRoomClearances(project, selected) : null;
+  const auditCounts = useMemo(() => runLayoutAudit(project, variant).counts, [project, variant]);
+  const auditAlertTotal = auditCounts.error + auditCounts.warn;
   useEffect(() => {
     setPreset(defaultPresetForRoom(roomId));
     setAccentWallIndex(null);
@@ -142,6 +145,7 @@ export default function Inspector({ project, variant, roomId, furnitureId, mutat
       const [x, z] = center(room);
       const f = boundFurniture({ ...makeFurniture('custom_glb', roomId, x, z), label: saved.name, modelAssetId: saved.assetId }, project);
       if (mutate(p => active(p).furniture.push(f))) {
+        onPreviewStage?.('furnished');
         onSelectFurniture(f.id);
         notify(`3D-модель «${saved.name}» добавлена. Настройте ширину, глубину и высоту справа.`);
       }
@@ -151,15 +155,22 @@ export default function Inspector({ project, variant, roomId, furnitureId, mutat
   }
 
   return <aside className="inspector">
-    <h2>
-      {tab === 'finish' ? 'Отделка' : tab === 'furniture' ? 'Мебель и техника' : tab === 'light' ? 'Освещение' : tab === 'electrical' ? 'Электрика и инженерия' : tab === 'estimate' ? 'Расход и смета' : tab === 'audit' ? 'Аудит планировки' : tab === 'agent' ? 'AI-помощник (A2UI)' : 'Размеры квартиры'}
-    </h2>
-    <p className="room-caption">
-      {room.name}
-      <span>
-        ≈ {(area(room.polygon) * project.scale ** 2).toFixed(2).replace('.', ',')} м²
-      </span>
-    </p>
+    <div className="inspector-head">
+      <h2>
+        {tab === 'finish' ? 'Отделка' : tab === 'furniture' ? 'Мебель и техника' : tab === 'light' ? 'Освещение' : tab === 'electrical' ? 'Электрика и инженерия' : tab === 'estimate' ? 'Расход и смета' : tab === 'audit' ? 'Аудит планировки' : tab === 'agent' ? 'Помощник по планировке' : 'Размеры квартиры'}
+      </h2>
+      {onSelectRoom ? <div className="inspector-room-bar">
+        <select className="inspector-room-select" aria-label="Активное помещение в инспекторе" value={roomId} onChange={e => onSelectRoom(e.target.value)}>
+          {project.rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+        </select>
+        <span>≈ {(area(room.polygon) * project.scale ** 2).toFixed(2).replace('.', ',')} м²</span>
+      </div> : <p className="room-caption">
+        {room.name}
+        <span>
+          ≈ {(area(room.polygon) * project.scale ** 2).toFixed(2).replace('.', ',')} м²
+        </span>
+      </p>}
+    </div>
     <div className="inspector-tabs" role="tablist" aria-label="Настройки">
       <button className={tab === 'finish' ? 'active' : ''} onClick={() => setTab('finish')}>Отделка</button>
       <button className={tab === 'furniture' ? 'active' : ''} onClick={() => setTab('furniture')}>Мебель</button>
@@ -167,7 +178,10 @@ export default function Inspector({ project, variant, roomId, furnitureId, mutat
       <button className={tab === 'sizes' ? 'active' : ''} onClick={() => setTab('sizes')}>Размеры</button>
       <button className={tab === 'electrical' ? 'active' : ''} onClick={() => { setTab('electrical'); onOpenElectrical() }}>Электрика</button>
       <button className={tab === 'estimate' ? 'active' : ''} onClick={() => setTab('estimate')}>Смета</button>
-      <button className={tab === 'audit' ? 'active' : ''} onClick={() => setTab('audit')}>Аудит</button>
+      <button className={tab === 'audit' ? 'active' : ''} onClick={() => setTab('audit')}>
+        Аудит
+        {auditAlertTotal > 0 && <span className={`tab-badge ${auditCounts.error > 0 ? 'err' : 'warn'}`}>{auditAlertTotal}</span>}
+      </button>
       <button className={tab === 'agent' ? 'active' : ''} onClick={() => setTab('agent')}>AI</button>
     </div>
     {tab === 'agent' && <AgentPanel project={project} variant={variant} roomId={roomId} actionHandlers={{ mutate, notify, onSelectRoom, onSelectFurniture, onPreviewStage, onSwitchMode, onToggleOverlay, onOpenElevation, onOpenCompare }} />}
@@ -320,17 +334,21 @@ export default function Inspector({ project, variant, roomId, furnitureId, mutat
       <label className="catalog-label">
         {`Добавить ${roomAccusative(roomId, room.name)}`}
         <select aria-label="Каталог мебели" value={preset} onChange={e => setPreset(e.target.value)}>
-          {catalog.map(p => <option key={p.name}>
-            {p.name}
-          </option>)}
+          {catalogGroups.map(group => <optgroup key={group} label={group}>
+            {catalog.filter(p => p.group === group).map(p => <option key={p.name} value={p.name}>
+              {p.name}
+            </option>)}
+          </optgroup>)}
         </select>
       </label>
       <button className="wide primary" onClick={() => {
         const pre = catalog.find(p => p.name === preset)!;
         const [x, z] = center(room);
         const f = boundFurniture({ ...makeFurniture(pre.kind, roomId, x, z), width: pre.dims[0], depth: pre.dims[1], height: pre.dims[2], ...(pre.elevation === undefined ? {} : { elevation: pre.elevation }) }, project);
-        if (mutate(p => active(p).furniture.push(f)))
-          onSelectFurniture(f.id)
+        if (mutate(p => active(p).furniture.push(f))) {
+          onPreviewStage?.('furnished');
+          onSelectFurniture(f.id);
+        }
       }}>
         <Plus size={16} />
         Добавить предмет
@@ -493,7 +511,7 @@ export default function Inspector({ project, variant, roomId, furnitureId, mutat
         <b>{`${project.ceilingHeight.toFixed(2).replace('.', ',')} м`}</b>
       </div>
     </>}
-    <ProductImporter project={project} roomId={roomId} surface={surface} onSwitchSurface={setSurface} mutate={mutate} notify={notify} onSelectFurniture={onSelectFurniture} />
+    {(tab === 'finish' || tab === 'furniture' || tab === 'estimate') && <ProductImporter project={project} roomId={roomId} surface={surface} onSwitchSurface={setSurface} mutate={mutate} notify={notify} onSelectFurniture={id => { if (id) onPreviewStage?.('furnished'); onSelectFurniture(id); }} />}
     <p className="privacy-note">Все варианты и ваши фотографии хранятся на этом устройстве.</p>
   </aside>
 }

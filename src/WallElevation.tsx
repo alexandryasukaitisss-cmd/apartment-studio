@@ -1,19 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Download, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, X } from 'lucide-react';
 import { electricalNames, electricalSymbols, engineeringNames, engineeringSymbols, HUMAN_HEIGHT_M, type Project, type Variant } from './model';
 import { kindNames } from './furnitureCatalog';
 import { roomWalls, wallTitle } from './openings';
 import { buildWallElevation } from './viewpoints';
 
 export default function WallElevation({
-  project, variant, roomId, initialWallIndex, onClose,
+  project, variant, roomId, initialWallIndex, onSelectRoom, onClose,
 }: {
-  project: Project; variant: Variant; roomId: string; initialWallIndex?: number | null; onClose: () => void;
+  project: Project; variant: Variant; roomId: string; initialWallIndex?: number | null; onSelectRoom?: (id: string) => void; onClose: () => void;
 }) {
-  const walls = useMemo(() => roomWalls(project, roomId), [project, roomId]);
+  const [activeRoomId, setActiveRoomId] = useState(roomId);
+  const walls = useMemo(() => roomWalls(project, activeRoomId), [project, activeRoomId]);
   const [wallIndex, setWallIndex] = useState<number>(() => initialWallIndex ?? walls[0]?.index ?? 0);
   const [showHuman, setShowHuman] = useState(true);
-  const room = project.rooms.find(r => r.id === roomId)!;
+  const room = project.rooms.find(r => r.id === activeRoomId) ?? project.rooms[0];
+
+  useEffect(() => { setActiveRoomId(roomId); }, [roomId]);
 
   useEffect(() => {
     if (!walls.some(w => w.index === wallIndex) && walls[0]) {
@@ -21,7 +24,13 @@ export default function WallElevation({
     }
   }, [walls, wallIndex]);
 
-  const data = useMemo(() => buildWallElevation(project, variant, roomId, wallIndex), [project, variant, roomId, wallIndex]);
+  const data = useMemo(() => buildWallElevation(project, variant, activeRoomId, wallIndex), [project, variant, activeRoomId, wallIndex]);
+  const wallPos = Math.max(0, walls.findIndex(w => w.index === wallIndex));
+  const stepWall = (delta: number) => {
+    if (!walls.length) return;
+    const next = walls[(wallPos + delta + walls.length) % walls.length];
+    setWallIndex(next.index);
+  };
 
   const scalePx = 150; // 1 m = 150 px in SVG viewBox
   const padL = 78, padR = 46, padT = 48, padB = 56;
@@ -39,7 +48,7 @@ export default function WallElevation({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `razvertka-${roomId}-wall-${wallIndex}.svg`;
+    a.download = `razvertka-${activeRoomId}-wall-${wallIndex}.svg`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
@@ -55,14 +64,28 @@ export default function WallElevation({
       </div>
       <div className="elevation-controls">
         <label className="field">
-          <span>Стена</span>
-          <select aria-label="Выбор стены для развёртки" value={wallIndex} onChange={e => setWallIndex(Number(e.target.value))}>
-            {walls.map(w => <option key={w.index} value={w.index}>{wallTitle(project, w)}</option>)}
+          <span>Помещение</span>
+          <select aria-label="Помещение развёртки" value={activeRoomId} onChange={e => {
+            setActiveRoomId(e.target.value);
+            onSelectRoom?.(e.target.value);
+          }}>
+            {project.rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
           </select>
         </label>
+        <div className="elevation-wall-stepper">
+          <button className="icon-button" aria-label="Предыдущая стена" title="Предыдущая стена" onClick={() => stepWall(-1)}>
+            <ChevronLeft size={16} />
+          </button>
+          <select aria-label="Выбор стены для развёртки" value={wallIndex} onChange={e => setWallIndex(Number(e.target.value))}>
+            {walls.map((w, i) => <option key={w.index} value={w.index}>{`${i + 1}/${walls.length} · ${wallTitle(project, w)}`}</option>)}
+          </select>
+          <button className="icon-button" aria-label="Следующая стена" title="Следующая стена" onClick={() => stepWall(1)}>
+            <ChevronRight size={16} />
+          </button>
+        </div>
         <label className="check-label">
           <input type="checkbox" checked={showHuman} onChange={e => setShowHuman(e.target.checked)} />
-          <span>Показать силуэт человека (186 см)</span>
+          <span>Человек 186 см</span>
         </label>
         <button className="outline" onClick={downloadSvg}><Download size={14} />SVG</button>
       </div>

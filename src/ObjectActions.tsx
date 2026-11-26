@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Copy, RotateCw, Trash2, Replace, Map, Compass } from 'lucide-react';
 import type { Furniture } from './model';
-import { catalog, kindNames, type Preset } from './furnitureCatalog';
+import { catalog, catalogGroups, kindNames, type Preset } from './furnitureCatalog';
 
 export interface ObjectActionHandlers {
   onDelete: () => void;
@@ -31,7 +31,9 @@ export default function ObjectActions({ selected, onDelete, onDuplicate, onRotat
           setReplacing(false)
       }}>
         <option value="" disabled>Выберите модель…</option>
-        {catalog.map(p => <option key={p.name}>{p.name}</option>)}
+        {catalogGroups.map(group => <optgroup key={group} label={group}>
+          {catalog.filter(p => p.group === group).map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
+        </optgroup>)}
       </select>
     </label>}
   </div>

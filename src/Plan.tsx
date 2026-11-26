@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { kindNames } from './furnitureCatalog';
-import { type Project, type Variant, type Furniture, type ElectricalPoint, type EngineeringItem, type Point, solidSpans, center, area, electricalNames, electricalSymbols, engineeringNames, engineeringSymbols, furnitureFront, furnitureOverlaps, roomAt } from './model';
+import { type Project, type Variant, type Furniture, type ElectricalPoint, type EngineeringItem, type Point, solidSpans, center, area, electricalNames, electricalSymbols, engineeringNames, engineeringSymbols, furnitureFront, furnitureOverlaps, roomAt, roomSize } from './model';
 import { doorSwingConflicts, doorSwingInfo } from './roomMeasures';
 import { lifeZonePolygons, type CameraPose } from './viewpoints';
 import { runLayoutAudit } from './layoutAudit';
@@ -16,12 +16,13 @@ interface PlanProps {
   deliveryHighlightId?: string | null;
   cameraPose?: CameraPose | null;
   onCameraJump?: (x: number, z: number, roomId: string) => void;
+  onEnterRoom?: (roomId: string) => void;
   measureMode?: boolean;
   onDrag?: (id: string, x: number, z: number, electrical?: boolean, snap?: boolean, kind?: DragKind) => void;
   onDragEnd?: (id: string, x: number, z: number, electrical?: boolean, snap?: boolean, kind?: DragKind) => void;
   onDragCancel?: () => void;
 }
-export default function Plan({ project, variant, selectedRoom, selectedFurniture, onSelect, onFurniture, mini = false, onDragStart, onDrag, onDragEnd, onDragCancel, electricalVisible = false, selectedElectrical, onElectrical, engineeringVisible = false, selectedEngineering, onEngineering, lifeZonesVisible = false, auditOverlayVisible = false, deliveryHighlightId = null, cameraPose = null, onCameraJump, measureMode = false }: PlanProps) {
+export default function Plan({ project, variant, selectedRoom, selectedFurniture, onSelect, onFurniture, mini = false, onDragStart, onDrag, onDragEnd, onDragCancel, electricalVisible = false, selectedElectrical, onElectrical, engineeringVisible = false, selectedEngineering, onEngineering, lifeZonesVisible = false, auditOverlayVisible = false, deliveryHighlightId = null, cameraPose = null, onCameraJump, onEnterRoom, measureMode = false }: PlanProps) {
   const svg = useRef<SVGSVGElement>(null);
   const drag = useRef<{ id: string; kind: DragKind; pointerId: number; start: Point; origin: Point; client: Point; moved: boolean } | null>(null);
   const suppressClick = useRef(false);
@@ -93,21 +94,40 @@ export default function Plan({ project, variant, selectedRoom, selectedFurniture
     const target = point(e.clientX, e.clientY);
     return target && current.moved ? [current.origin[0] + target[0] - current.start[0], current.origin[1] + target[1] - current.start[1]] : null
   };
-  const maxX = Math.max(...project.rooms.flatMap(r => r.polygon.map(p => p[0]))), maxZ = Math.max(...project.rooms.flatMap(r => r.polygon.map(p => p[1]))), facadeZ = Math.max(...project.rooms.filter(r => r.id !== 'balcony').flatMap(r => r.polygon.map(p => p[1])));
-  const overlapping = new Set(furnitureOverlaps(project, variant.furniture).flatMap(o => [o.a.id, o.b.id]));
-  const swingConflicts = !mini ? doorSwingConflicts(project, variant.furniture) : [];
-  const conflictingDoorKeys = new Set(swingConflicts.flatMap(c => [
-    `${c.wallIndex}-${c.openingIndex}`,
-    ...(c.otherDoor ? [`${c.otherDoor.wallIndex}-${c.otherDoor.openingIndex}`] : []),
-  ]));
-  const heatedRoomIds = new Set((variant.engineering?.heatedFloors ?? []).map(z => z.roomId));
-  const zones = !mini && lifeZonesVisible ? lifeZonePolygons(project, variant) : [];
-  const auditOverlay = !mini && (auditOverlayVisible || deliveryHighlightId) ? runLayoutAudit(project, variant) : null;
+  const { maxX, maxZ, facadeZ } = useMemo(() => ({
+    maxX: Math.max(...project.rooms.flatMap(r => r.polygon.map(p => p[0]))),
+    maxZ: Math.max(...project.rooms.flatMap(r => r.polygon.map(p => p[1]))),
+    facadeZ: Math.max(...project.rooms.filter(r => r.id !== 'balcony').flatMap(r => r.polygon.map(p => p[1]))),
+  }), [project.rooms]);
+  const overlapping = useMemo(
+    () => new Set(furnitureOverlaps(project, variant.furniture).flatMap(o => [o.a.id, o.b.id])),
+    [project, variant.furniture],
+  );
+  const conflictingDoorKeys = useMemo(() => {
+    if (mini) return new Set<string>();
+    const swingConflicts = doorSwingConflicts(project, variant.furniture);
+    return new Set(swingConflicts.flatMap(c => [
+      `${c.wallIndex}-${c.openingIndex}`,
+      ...(c.otherDoor ? [`${c.otherDoor.wallIndex}-${c.otherDoor.openingIndex}`] : []),
+    ]));
+  }, [mini, project, variant.furniture]);
+  const heatedRoomIds = useMemo(
+    () => new Set((variant.engineering?.heatedFloors ?? []).map(z => z.roomId)),
+    [variant.engineering?.heatedFloors],
+  );
+  const zones = useMemo(
+    () => (!mini && lifeZonesVisible ? lifeZonePolygons(project, variant) : []),
+    [mini, lifeZonesVisible, project, variant],
+  );
+  const auditOverlay = useMemo(
+    () => (!mini && (auditOverlayVisible || Boolean(deliveryHighlightId)) ? runLayoutAudit(project, variant) : null),
+    [mini, auditOverlayVisible, deliveryHighlightId, project, variant],
+  );
   const highlightedDelivery = auditOverlay?.delivery.find(d => d.furnitureId === (deliveryHighlightId ?? selectedFurniture));
-  const sortedFurniture = [...variant.furniture].sort((a, b) => {
+  const sortedFurniture = useMemo(() => [...variant.furniture].sort((a, b) => {
     const rank = (k: Furniture['kind']) => k === 'rug' || k === 'platform' ? 0 : k === 'person' ? 3 : k === 'upper_cabinet' || k === 'hood' ? 2 : 1;
     return rank(a.kind) - rank(b.kind);
-  });
+  }), [variant.furniture]);
   return <svg ref={svg} onPointerDown={e => {
     if (mini && onCameraJump && e.button === 0) {
       const pt = point(e.clientX, e.clientY);
@@ -173,7 +193,7 @@ export default function Plan({ project, variant, selectedRoom, selectedFurniture
         {m.image && <image href={m.image} width={m.width / project.scale} height={m.height / project.scale} preserveAspectRatio="none" />}
       </pattern>)}
     </defs>
-    {project.rooms.map(r => <g key={r.id} role="button" tabIndex={mini ? -1 : 0} aria-label={`Выбрать ${r.name}`} onClick={() => onSelect(r.id)} onKeyDown={e => {
+    {project.rooms.map(r => <g key={r.id} role="button" tabIndex={mini ? -1 : 0} aria-label={`Выбрать ${r.name}`} onClick={() => onSelect(r.id)} onDoubleClick={() => { if (!mini) onEnterRoom?.(r.id); }} onKeyDown={e => {
       if (e.key === 'Enter' || e.key === ' ')
         onSelect(r.id)
     }}>
@@ -237,6 +257,28 @@ export default function Plan({ project, variant, selectedRoom, selectedFurniture
           <path d={`M${-f.width * .46} ${f.depth * -.15}h${f.width * .92}`} stroke="#ede9df" strokeWidth=".08" />
         </>}
         {f.kind === 'sofa' && <path d={`M${-f.width * .35} ${-f.depth * .34}h${f.width * .7}v${f.depth * .65}h${-f.width * .7}Z`} stroke="#ede9df" strokeWidth=".05" fill="none" />}
+        {!mini && f.kind === 'kitchen' && <>
+          <rect x={-f.width * .36} y={-f.depth * .28} width={Math.min(.46, f.width * .28)} height={f.depth * .56} rx=".04" fill="none" stroke="#6f6554" strokeWidth=".022" />
+          <circle cx={f.width * .22} cy={-f.depth * .14} r=".065" fill="none" stroke="#534c40" strokeWidth=".02" />
+          <circle cx={f.width * .34} cy={f.depth * .14} r=".065" fill="none" stroke="#534c40" strokeWidth=".02" />
+        </>}
+        {!mini && f.kind === 'bath' && <>
+          <rect x={-f.width * .38} y={-f.depth * .42} width={f.width * .76} height={f.depth * .84} rx={Math.min(f.width, f.depth) * .28} fill="#f7f5ef" fillOpacity=".65" stroke="#8a8272" strokeWidth=".02" />
+          <circle cx="0" cy={-f.depth * .28} r=".035" fill="#6f6a5e" />
+        </>}
+        {!mini && f.kind === 'shower' && <>
+          <path d={`M${-f.width * .44} ${-f.depth * .44}L${f.width * .44} ${f.depth * .44}M${f.width * .44} ${-f.depth * .44}L${-f.width * .44} ${f.depth * .44}`} stroke="#8a8272" strokeWidth=".015" strokeOpacity=".55" />
+          <circle cx="0" cy="0" r=".045" fill="#f7f5ef" stroke="#6f6a5e" strokeWidth=".02" />
+        </>}
+        {!mini && f.kind === 'toilet' && <>
+          <rect x={-f.width * .42} y={-f.depth * .45} width={f.width * .84} height={f.depth * .26} rx=".025" fill="#f7f5ef" stroke="#8a8272" strokeWidth=".018" />
+          <ellipse cx="0" cy={f.depth * .10} rx={f.width * .34} ry={f.depth * .28} fill="#f7f5ef" stroke="#8a8272" strokeWidth=".018" />
+        </>}
+        {!mini && f.kind === 'vanity' && <ellipse cx="0" cy="0" rx={f.width * .30} ry={f.depth * .28} fill="#f7f5ef" stroke="#8a8272" strokeWidth=".018" />}
+        {!mini && (f.kind === 'washer' || f.kind === 'laundry_tower') && <circle cx="0" cy="0" r={Math.min(f.width, f.depth) * .28} fill="none" stroke="#6e685c" strokeWidth=".022" />}
+        {!mini && (f.kind === 'wardrobe' || f.kind === 'pantry') && <path d={`M${-f.width * .43} 0H${f.width * .43}`} stroke="#7e7360" strokeWidth=".018" strokeDasharray=".06 .04" />}
+        {!mini && f.kind === 'chair' && <path d={`M${-f.width * .38} ${-f.depth * .34}H${f.width * .38}`} stroke="#586352" strokeWidth=".055" strokeLinecap="round" />}
+        {!mini && f.kind === 'workstation' && <rect x={-f.width * .28} y={-f.depth * .36} width={f.width * .56} height={.06} rx=".02" fill="#3a4345" />}
       </>}
     </g>)}
     {!mini && variant.furniture.filter(f => f.id === selectedFurniture).map(f => {
@@ -250,13 +292,18 @@ export default function Plan({ project, variant, selectedRoom, selectedFurniture
     })}
     {!mini && project.rooms.map(r => {
       const [x, z] = center(r);
+      const [rw, rd] = roomSize(r);
+      const isSelected = r.id === selectedRoom;
       return <g key={`label-${r.id}`} pointerEvents="none" transform={`translate(${x},${z})`} className="plan-label">
-        <text textAnchor="middle" y="-.1">
+        <text textAnchor="middle" y={isSelected ? '-.18' : '-.1'}>
           {r.name}
         </text>
-        <text textAnchor="middle" y=".22" className="area-label">
+        <text textAnchor="middle" y={isSelected ? '.12' : '.22'} className="area-label">
           {`≈ ${(area(r.polygon) * project.scale ** 2).toFixed(2).replace('.', ',')} м²`}
         </text>
+        {isSelected && <text textAnchor="middle" y=".38" className="room-dims-label">
+          {`${(rw * project.scale).toFixed(2).replace('.', ',')} × ${(rd * project.scale).toFixed(2).replace('.', ',')} м`}
+        </text>}
       </g>
     })}
     {!mini && electricalVisible && <g className="electrical-layer">

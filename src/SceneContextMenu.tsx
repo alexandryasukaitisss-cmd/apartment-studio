@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import type { SceneContextTarget } from './Scene';
-import { catalog, type Preset } from './furnitureCatalog';
+import { catalog, catalogGroups, type Preset } from './furnitureCatalog';
 import { contextMenuPosition } from './contextMenu';
 
 const surfaceLabels = { floor: 'Изменить пол', walls: 'Изменить стены комнаты', ceiling: 'Изменить потолок' };
@@ -46,7 +46,9 @@ export default function SceneContextMenu({ target, roomName, furnitureName, onSu
     {target.furnitureId && <button className="wide" onClick={onFurniture}>Настроить предмет{furnitureName ? `: ${furnitureName}` : ''}</button>}
     <label className="context-catalog">Добавить предмет
       <select aria-label="Каталог для добавления в выбранном месте" value={presetName} onChange={event => { setPresetName(event.target.value); setAddFailed(false) }}>
-        {catalog.map(p => <option key={p.name}>{p.name}</option>)}
+        {catalogGroups.map(group => <optgroup key={group} label={group}>
+          {catalog.filter(p => p.group === group).map(p => <option key={p.name}>{p.name}</option>)}
+        </optgroup>)}
       </select>
     </label>
     <button className="wide primary" onClick={() => setAddFailed(!onAdd(catalog.find(p => p.name === presetName)!))}>Добавить предмет</button>

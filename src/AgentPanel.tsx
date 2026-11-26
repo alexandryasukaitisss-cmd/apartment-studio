@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Bot, Copy, Loader2, Send, Terminal } from 'lucide-react';
+import { Copy, Loader2, Send, Terminal } from 'lucide-react';
 import { type Project, type Variant } from './model';
 import { type A2UIMessage, type AllowedAgentFunctionName } from './a2ui/protocol';
 import { buildAgentContext, generateOfflineA2UISurface } from './a2ui/offlineAdvisor';
@@ -35,9 +35,17 @@ export default function AgentPanel({
   const [prompt, setPrompt] = useState('');
   const [busy, setBusy] = useState(false);
   const [meta, setMeta] = useState<{ provider: string; model: string; elapsedMs?: number } | null>(null);
+  const [hasCustomRun, setHasCustomRun] = useState(false);
   const [messages, setMessages] = useState<A2UIMessage[]>(() =>
     generateOfflineA2UISurface('Проведи аудит и покажи рекомендации', project, variant, roomId),
   );
+
+  // Keep initial / offline surface reactive when the user switches rooms or edits the variant.
+  useEffect(() => {
+    if (!hasCustomRun || provider === 'offline') {
+      setMessages(generateOfflineA2UISurface(prompt.trim() || 'Проведи аудит и покажи рекомендации', project, variant, roomId));
+    }
+  }, [project, variant, roomId, hasCustomRun, provider]);
 
   useEffect(() => {
     let active = true;
@@ -64,6 +72,7 @@ export default function AgentPanel({
   async function runQuery(customPrompt?: string) {
     const q = (customPrompt ?? prompt).trim();
     if (!q || busy) return;
+    setHasCustomRun(true);
     if (customPrompt) setPrompt(customPrompt);
 
     if (provider === 'offline' || serverOnline === false) {
@@ -116,22 +125,17 @@ export default function AgentPanel({
   };
 
   return <div className="agent-panel">
-    <div className="agent-header-card">
+    <div className="agent-spec-head">
       <div className="agent-title-row">
-        <Bot size={16} />
+        <Terminal size={14} />
         <strong>AI-помощник (A2UI 1.0)</strong>
         <span className={`audit-pill ${availableCount > 0 ? 'ok' : 'tight'}`}>
-          {serverOnline === false ? 'Офлайн-режим' : availableCount > 0 ? `${availableCount} CLI готово` : 'Локальный режим'}
+          {serverOnline === false ? 'Офлайн' : availableCount > 0 ? `${availableCount} CLI` : 'Локально'}
         </span>
       </div>
       <p className="small-note">
-        Агент отвечает живыми карточками A2UI 1.0 вместо стен текста. Все действия применяются безопасно и отменяются одним ⌘Z.
+        Карточки действий по текущему плану и комнате. Любое изменение отменяется через ⌘Z.
       </p>
-      {providers.length > 0 && <div className="agent-provider-pills">
-        {providers.map(p => <span key={p.id} className={`provider-chip ${p.available ? 'on' : 'off'}`} title={p.command || 'Не найден в PATH'}>
-          {p.id}
-        </span>)}
-      </div>}
     </div>
 
     <div className="section-fields">

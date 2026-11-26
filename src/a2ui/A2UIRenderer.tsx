@@ -1,5 +1,5 @@
 import { type ReactNode, useMemo } from 'react';
-import { AlertTriangle, Info, Layers, Plus, Sparkles } from 'lucide-react';
+import { AlertTriangle, ArrowUpRight, Info, Layers, Plus } from 'lucide-react';
 import {
   type A2UIAction,
   type A2UIComponent,
@@ -73,7 +73,7 @@ function renderNode(
           <strong>{resolveBindableString(comp.title, dm)}</strong>
           {comp.subtitle && <small>{resolveBindableString(comp.subtitle, dm)}</small>}
         </div>
-        <Sparkles size={14} className="a2ui-domain-icon" />
+        <ArrowUpRight size={14} className="a2ui-domain-icon" />
       </button>;
     case 'AuditFixCard':
       return <div key={id} className={`audit-issue sev-${comp.severity ?? 'info'} a2ui-fix-card`}>
