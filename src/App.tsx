@@ -760,6 +760,30 @@ export default function App() {
             setDeliveryHighlightId(id);
             if (id && mode !== '2d' && mode !== 'split') setMode('2d');
           }}
+          onSwitchMode={nextMode => {
+            setAutoTour(false);
+            if (nextMode === 'walk' || nextMode === 'split') setWalkRoomId(roomId);
+            setMode(nextMode);
+          }}
+          onToggleOverlay={(overlay, visible) => {
+            if (overlay === 'audit') {
+              setAuditOverlayVisible(visible);
+              if (visible && mode !== '2d' && mode !== 'split') setMode('2d');
+            } else if (overlay === 'lifeZones') {
+              setLifeZonesVisible(visible);
+            } else if (overlay === 'electrical') {
+              setElectricalVisible(visible);
+              if (visible && mode !== '2d' && mode !== 'split') setMode('2d');
+            } else if (overlay === 'engineering') {
+              setEngineeringVisible(visible);
+              if (visible && mode !== '2d' && mode !== 'split') setMode('2d');
+            }
+          }}
+          onOpenElevation={targetRoomId => {
+            if (targetRoomId) setRoomId(targetRoomId);
+            setElevationOpen(true);
+          }}
+          onOpenCompare={openCompare}
           onPreviewStage={nextStage => {
             setStage(nextStage);
             if (mode === '2d') setMode('3d');

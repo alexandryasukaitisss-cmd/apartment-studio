@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createProductImporter } from './import-product.mjs';
 import { ImportError } from './network.mjs';
+import { detectProviders, runCliAgent, validateAgentRequest } from './agent-providers.mjs';
 
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.png': 'image/png',
@@ -36,9 +37,38 @@ async function readJson(request) {
   } catch { throw new ImportError('INVALID_JSON', 'Передайте JSON объект с адресом товара в поле url.', 400); }
 }
 
+async function readAgentJson(request) {
+  if (!/^application\/json(?:\s*;.*)?$/i.test(request.headers['content-type'] ?? '')) {
+    throw new ImportError('JSON_REQUIRED', 'Запрос должен содержать JSON.', 415);
+  }
+  const MAX_AGENT_BODY = 65_536;
+  if (Number(request.headers['content-length']) > MAX_AGENT_BODY) {
+    throw new ImportError('BODY_TOO_LARGE', 'Контекст запроса слишком большой (до 64 КБ).', 413);
+  }
+  const chunks = [];
+  let bytes = 0;
+  for await (const chunk of request) {
+    bytes += chunk.length;
+    if (bytes > MAX_AGENT_BODY) throw new ImportError('BODY_TOO_LARGE', 'Контекст запроса слишком большой (до 64 КБ).', 413);
+    chunks.push(chunk);
+  }
+  try {
+    const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    if (!body || Array.isArray(body) || typeof body.prompt !== 'string') throw new Error();
+    const provider = body.provider ?? 'auto';
+    const model = body.model ? String(body.model) : undefined;
+    validateAgentRequest(provider, model, body.prompt);
+    const context = body.context && typeof body.context === 'object' && !Array.isArray(body.context) ? body.context : {};
+    return { provider, model, prompt: body.prompt, context };
+  } catch (err) {
+    throw new ImportError('INVALID_AGENT_REQUEST', err?.message || 'Передайте корректный JSON-запрос для агента.', 400);
+  }
+}
+
 export function createLocalServer({ importProduct = createProductImporter(), distDir = DEFAULT_DIST,
-  devOrigins = [], maxConcurrent = 3 } = {}) {
+  devOrigins = [], maxConcurrent = 3, listAgentProviders = detectProviders, runAgent = runCliAgent } = {}) {
   let active = 0;
+  let activeAgents = 0;
   const server = http.createServer({ requestTimeout: 15_000, headersTimeout: 10_000,
     connectionsCheckingInterval: 1000 }, async (request, response) => {
     try {
@@ -59,6 +89,26 @@ export function createLocalServer({ importProduct = createProductImporter(), dis
         if (request.method !== 'GET') return json(response, 405, { error: 'METHOD_NOT_ALLOWED', message: 'Используйте GET.' });
         return json(response, 200, { service: 'personal.apartmentstudio', protocolVersion: 1,
           instance: process.env.APARTMENT_HOST_INSTANCE ?? null });
+      }
+      if (pathname === '/api/agent/providers') {
+        if (request.method !== 'GET') return json(response, 405, { error: 'METHOD_NOT_ALLOWED', message: 'Используйте GET.' });
+        return json(response, 200, { providers: await listAgentProviders() });
+      }
+      if (pathname === '/api/agent/a2ui') {
+        if (request.method !== 'POST') return json(response, 405, { error: 'METHOD_NOT_ALLOWED', message: 'Используйте POST.' });
+        if (activeAgents >= 2) return json(response, 429, { error: 'BUSY', message: 'Дождитесь завершения предыдущего запроса агента.' });
+        activeAgents++;
+        request.setTimeout(120_000);
+        response.setTimeout(120_000);
+        try {
+          const payload = await readAgentJson(request);
+          const result = await runAgent(payload);
+          json(response, 200, result);
+        } catch (err) {
+          if (err instanceof ImportError) throw err;
+          throw new ImportError('AGENT_ERROR', err?.message || 'Локальный CLI-агент не смог сформировать A2UI-ответ.', 502);
+        } finally { activeAgents--; }
+        return;
       }
       if (pathname.startsWith('/api/')) {
         if (pathname !== '/api/import-product') return json(response, 404, { error: 'NOT_FOUND', message: 'Метод не найден.' });

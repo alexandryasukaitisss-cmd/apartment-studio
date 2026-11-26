@@ -12,7 +12,7 @@ Everything stays on your device. There is no account, cloud sync, or telemetry.
 
 The demo runs entirely in the browser. Product URL import needs the local server; offline HTML/text import and project JSON import work without it.
 
-Version 0.1.0. MIT.
+Version 0.2.0. Free for personal and non-commercial use ([PolyForm Noncommercial 1.0.0](LICENSE)).
 
 Русская версия: [README.ru.md](README.ru.md).
 
@@ -57,7 +57,23 @@ npm run dev
 - 7-stage **Renovation Roadmap** linked to measured areas, electrical counts, and budgets, plus material/consumables/work estimates and comparison across up to 20 variants.
 - Export: project JSON, estimate CSV, wall elevation SVG, and a printable work brief for builders/electricians (HTML/PDF).
 - Offline product import from saved HTML or pasted characteristics, plus an optional local URL reader for supported stores.
+- **A2UI 1.0 Generative UI Assistant + Multi-CLI support**: interactive native A2UI v1.0 cards with safe, undoable `callAgentFunction` actions powered by your local CLI agents (**Codex**, **Claude Code**, **OpenCode**, **Gemini CLI**, **Ollama**) or a built-in offline A2UI advisor, plus a standalone terminal CLI (`npm run agent`).
 - Undo/redo, autosave to IndexedDB, and explicit project export/import.
+
+## AI Agent via CLI (A2UI 1.0)
+
+You can invoke the renovation assistant directly from the terminal or connect your local AI CLIs in the **AI** tab when running locally (`npm start`):
+
+```sh
+npm run agent -- --list-providers
+npm run agent -- --provider codex --prompt "Audit the floor plan and suggest a warm minimalist style" --project kvartira-project.json
+npm run agent -- --provider claude --model sonnet --prompt "Fix bathroom door swing and suggest living room furniture" --json
+npm run agent -- --provider opencode --prompt "Check TV glare and storage"
+npm run agent -- --provider gemini --prompt "Compare renovation stages"
+npm run agent -- --provider offline --prompt "Audit" --json
+```
+
+All CLI invocations run strictly without shell interpolation (`shell: false`), validate A2UI v1.0 component and action allowlists, and every UI action is undoable with `⌘Z`.
 
 ## Privacy
 
@@ -77,8 +93,8 @@ npm run dev
 ## Tests
 
 ```sh
-npm test          # 221 app tests
-npm run test:server # 44 server tests
+npm test          # 225 app tests
+npm run test:server # 67 server tests
 npm run build
 ```
 
@@ -86,4 +102,4 @@ The public tree does not include the native macOS wrapper or the Node runtime us
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+**PolyForm Noncommercial License 1.0.0** — free for personal, educational, and non-commercial use. Commercial use is prohibited without a separate written license from the copyright holder. See [LICENSE](LICENSE).

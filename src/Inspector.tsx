@@ -16,11 +16,12 @@ import { defaultPresetForRoom, doorSwingConflicts, furnitureCoordsFromRoomOffset
 import { applyStylePreset, stylePresets } from './stylePresets';
 import { saveCustomModel } from './customModels';
 import AuditPanel from './AuditPanel';
+import AgentPanel from './AgentPanel';
 export { catalog, kindNames } from './furnitureCatalog';
-export type InspectorTab = 'finish' | 'furniture' | 'light' | 'sizes' | 'electrical' | 'estimate' | 'audit';
+export type InspectorTab = 'finish' | 'furniture' | 'light' | 'sizes' | 'electrical' | 'estimate' | 'audit' | 'agent';
 const surfaceDisplayNames: Record<Surface, string> = { floor: 'Пол', walls: 'Стены комнаты', ceiling: 'Потолок' };
 
-export default function Inspector({ project, variant, roomId, furnitureId, mutate, onSelectRoom, onSelectFurniture, notify, objectActions, electrical, onOpenElectrical, surfaceSelection, furnitureSelection, tabRequest, onPreviewStage, auditOverlayVisible, onToggleAuditOverlay, deliveryHighlightId, onSelectDeliveryItem }: { tabRequest?: { tab: InspectorTab; request: number }; furnitureSelection?: number; surfaceSelection?: { surface: Surface; wallIndex?: number; request: number }; electrical: ElectricalControlsProps; onOpenElectrical: () => void; project: Project; variant: Variant; roomId: string; furnitureId: string | null; mutate: (f: (p: Project) => void) => boolean; objectActions: ObjectActionHandlers; onSelectRoom?: (id: string) => void; onSelectFurniture: (id: string | null) => void; notify: (s: string, error?: boolean) => void; onPreviewStage?: (stage: RenovationStage) => void; auditOverlayVisible?: boolean; onToggleAuditOverlay?: (v: boolean) => void; deliveryHighlightId?: string | null; onSelectDeliveryItem?: (id: string | null) => void }) {
+export default function Inspector({ project, variant, roomId, furnitureId, mutate, onSelectRoom, onSelectFurniture, notify, objectActions, electrical, onOpenElectrical, surfaceSelection, furnitureSelection, tabRequest, onPreviewStage, auditOverlayVisible, onToggleAuditOverlay, deliveryHighlightId, onSelectDeliveryItem, onSwitchMode, onToggleOverlay, onOpenElevation, onOpenCompare }: { tabRequest?: { tab: InspectorTab; request: number }; furnitureSelection?: number; surfaceSelection?: { surface: Surface; wallIndex?: number; request: number }; electrical: ElectricalControlsProps; onOpenElectrical: () => void; project: Project; variant: Variant; roomId: string; furnitureId: string | null; mutate: (f: (p: Project) => void) => boolean; objectActions: ObjectActionHandlers; onSelectRoom?: (id: string) => void; onSelectFurniture: (id: string | null) => void; notify: (s: string, error?: boolean) => void; onPreviewStage?: (stage: RenovationStage) => void; auditOverlayVisible?: boolean; onToggleAuditOverlay?: (v: boolean) => void; deliveryHighlightId?: string | null; onSelectDeliveryItem?: (id: string | null) => void; onSwitchMode?: (mode: '2d' | '3d' | 'walk' | 'split') => void; onToggleOverlay?: (overlay: 'audit' | 'lifeZones' | 'electrical' | 'engineering', visible: boolean) => void; onOpenElevation?: (roomId?: string) => void; onOpenCompare?: () => void }) {
   const [tab, setTab] = useState<InspectorTab>('finish');
   useEffect(() => { if (tabRequest) setTab(tabRequest.tab) }, [tabRequest]);
   const [surface, setSurface] = useState<Surface>('floor');
@@ -151,7 +152,7 @@ export default function Inspector({ project, variant, roomId, furnitureId, mutat
 
   return <aside className="inspector">
     <h2>
-      {tab === 'finish' ? 'Отделка' : tab === 'furniture' ? 'Мебель и техника' : tab === 'light' ? 'Освещение' : tab === 'electrical' ? 'Электрика и инженерия' : tab === 'estimate' ? 'Расход и смета' : tab === 'audit' ? 'Аудит планировки' : 'Размеры квартиры'}
+      {tab === 'finish' ? 'Отделка' : tab === 'furniture' ? 'Мебель и техника' : tab === 'light' ? 'Освещение' : tab === 'electrical' ? 'Электрика и инженерия' : tab === 'estimate' ? 'Расход и смета' : tab === 'audit' ? 'Аудит планировки' : tab === 'agent' ? 'AI-помощник (A2UI)' : 'Размеры квартиры'}
     </h2>
     <p className="room-caption">
       {room.name}
@@ -167,7 +168,9 @@ export default function Inspector({ project, variant, roomId, furnitureId, mutat
       <button className={tab === 'electrical' ? 'active' : ''} onClick={() => { setTab('electrical'); onOpenElectrical() }}>Электрика</button>
       <button className={tab === 'estimate' ? 'active' : ''} onClick={() => setTab('estimate')}>Смета</button>
       <button className={tab === 'audit' ? 'active' : ''} onClick={() => setTab('audit')}>Аудит</button>
+      <button className={tab === 'agent' ? 'active' : ''} onClick={() => setTab('agent')}>AI</button>
     </div>
+    {tab === 'agent' && <AgentPanel project={project} variant={variant} roomId={roomId} actionHandlers={{ mutate, notify, onSelectRoom, onSelectFurniture, onPreviewStage, onSwitchMode, onToggleOverlay, onOpenElevation, onOpenCompare }} />}
     {tab === 'audit' && <AuditPanel project={project} variant={variant} roomId={roomId} mutate={mutate} notify={notify} onSelectRoom={onSelectRoom} onSelectFurniture={onSelectFurniture} auditOverlayVisible={auditOverlayVisible} onToggleAuditOverlay={onToggleAuditOverlay} deliveryHighlightId={deliveryHighlightId} onSelectDeliveryItem={onSelectDeliveryItem} onOpenEngineering={() => { setTab('electrical'); electrical.engineering?.onVisible(true); }} />}
     {tab === 'estimate' && <EstimatePanel project={project} variant={variant} roomId={roomId} surface={surface} onSurface={setSurface} onQuote={quote => updateMaterial({ quote: { ...quote, observedAt: undefined } }, surface)} onWorkRates={updateWorkRates} onRoadmapStatus={updateRoadmapStatus} onPreviewStage={onPreviewStage} onNotify={msg => notify(msg)} />}
     {tab === 'electrical' && <ElectricalControls {...electrical} />}
