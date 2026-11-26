@@ -2,6 +2,8 @@ import { electricalNames, electricalSymbols, engineeringNames, engineeringSymbol
 import { kindNames } from './furnitureCatalog';
 import { estimateVariant, furnitureBudget, projectQuantities, variantBudgetSummary, worksBudget } from './materialEstimate';
 import { doorSwingInfo, measurementChecklistItems, pointRoomOffsets } from './roomMeasures';
+import { buildRenovationRoadmap } from './renovationRoadmap';
+import { runLayoutAudit, STORAGE_CHECKLIST_ITEMS } from './layoutAudit';
 
 const surfaceNames: Record<Surface, string> = { floor: 'Пол', walls: 'Стены', ceiling: 'Потолок' };
 const fmt = (n: number) => n.toLocaleString('ru-RU', { maximumFractionDigits: 2 });
@@ -193,6 +195,13 @@ export function buildRenovationBriefHtml(project: Project, variant: Variant, res
     return `<tr><td><strong>${escHtml(r.name)}</strong></td><td>${done} / ${measurementChecklistItems.length}</td><td>${escHtml(note?.notes || '—')}</td></tr>`;
   }).filter(Boolean).join('');
 
+  const roadmap = buildRenovationRoadmap(project, variant, reserve);
+  const statusMap = { todo: 'Не начат', in_progress: 'В работе', done: 'Готово' };
+  const roadmapRows = roadmap.map(s => `<tr><td>${s.order}. <strong>${escHtml(s.title)}</strong></td><td>${statusMap[s.status]}</td><td>${escHtml(s.summary)}</td><td>${escHtml(s.budgetText)}</td></tr>`).join('');
+  const audit = runLayoutAudit(project, variant);
+  const auditIssueRows = audit.issues.map(i => `<tr><td>${i.severity === 'error' ? 'Критично' : i.severity === 'warn' ? 'Риск' : 'Совет'}</td><td><strong>${escHtml(i.title)}</strong></td><td>${escHtml(i.detail)}</td></tr>`).join('');
+  const storageRows = STORAGE_CHECKLIST_ITEMS.map(item => `<tr><td>${escHtml(item.label)}</td><td>${escHtml(project.storageChecklist?.[item.key] || '— не назначено —')}</td></tr>`).join('');
+
   const totalsStr = Object.entries(summary.totals).map(([cur, val]) => `${fmt(val)} ${escHtml(cur)}`).join(' + ') || 'цены не заполнены';
 
   return `<!doctype html>
@@ -258,6 +267,14 @@ export function buildRenovationBriefHtml(project: Project, variant: Variant, res
   <table><thead><tr><th>Работа</th><th>Объём</th><th>Ставка</th><th>Сумма</th></tr></thead><tbody>${works.lines.filter(l => l.cost !== undefined).map(l => `<tr><td>${escHtml(l.label)}</td><td>${fmt(l.quantity)} ${l.unit}</td><td>${fmt(l.rate!)}</td><td>${fmt(l.cost!)} ${escHtml(works.currency)}</td></tr>`).join('')}<tr><td colspan="3"><strong>Итого по работам</strong></td><td><strong>${fmt(works.total)} ${escHtml(works.currency)}</strong></td></tr></tbody></table>` : ''}
 
   ${notesRows ? `<h2>8. Заметки и обмеры по комнатам</h2><table><thead><tr><th>Помещение</th><th>Чеклист</th><th>Заметки</th></tr></thead><tbody>${notesRows}</tbody></table>` : ''}
+
+  <h2>9. Этапы ремонта (дорожная карта)</h2>
+  <table><thead><tr><th>Этап</th><th>Статус</th><th>Объём по модели</th><th>Ориентир бюджета</th></tr></thead><tbody>${roadmapRows}</tbody></table>
+
+  <h2>10. Аудит планировки, чистовые допуски и хоз-хранение</h2>
+  <p>Заложенный черновой пирог: штукатурка/плитка <strong>${audit.allowance.wallCm} см</strong> на стену, стяжка и пол <strong>${audit.allowance.floorCm} см</strong>, опуск потолка <strong>${audit.allowance.ceilingCm} см</strong>. Запас хранения: <strong>${audit.storage.totalStorageM2} м² (${audit.storage.ratioPct}%)</strong>.</p>
+  ${auditIssueRows ? `<table><thead><tr><th>Уровень</th><th>Проверка</th><th>Пояснение</th></tr></thead><tbody>${auditIssueRows}</tbody></table>` : '<p>Критических замечаний аудита не обнаружено.</p>'}
+  <table><thead><tr><th>Бытовая категория</th><th>Запланированное место хранения</th></tr></thead><tbody>${storageRows}</tbody></table>
 </body>
 </html>`;
 }

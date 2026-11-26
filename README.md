@@ -48,13 +48,14 @@ npm run dev
 
 ## What is included
 
-- 2D plan with rooms, walls, doors, windows, furniture, electrical points, engineering items, a ruler, and door swings.
-- 3D scene and walk-through camera with room-aware movement.
-- Finishes by surface, accent walls, custom color/texture, physical repeat, and roughness.
-- Furniture catalog, rotation, elevation, collision warnings, and room boundaries.
-- Up to 20 design variants with independent finishes, furniture, lighting, electrical, and engineering layers.
-- Material estimate: floor/wall/ceiling areas, openings, reserve, whole packs, work rates, furniture/tech prices, and variant comparison.
-- Export: project JSON, estimate CSV, and a work brief for builders/electricians (HTML/PDF).
+- 2D plan with rooms, walls, doors, windows, furniture, electrical points, engineering items, a ruler, door swings, and live camera FOV cone.
+- Synchronized **2D + 3D Split View**, 3D cutaway scene, and first-person walk-through camera (with preset room viewpoints, saved views, auto-tour, and eye-level toggle).
+- **4 renovation stages** in 3D: bare concrete shell, rough-in/engineering, finishes without furniture, and fully furnished apartment.
+- **2D Wall Elevation view** (with exact cm heights for sockets, switches, openings, furniture, and human scale figure) + **Before/After split-curtain variant comparison**.
+- Realistic 3D details: procedural bump maps + RoomEnvironment IBL lighting, 3D interior doors (framed or flush hidden), skirting boards, curtains, 3D wall electrical outlets, 1-click whole-apartment style presets, and local `.glb`/`.gltf` 3D model import.
+- **Smart Layout Audit**: net room dimensions after plaster/screed/ceiling allowances, large-furniture delivery route & 90° turn check from entrance, plumbing slope & riser distance checks, inward bathroom door alerts, TV glare & window blocking checks, entrance dirty-zone & privacy cone, storage index + household storage checklist.
+- 7-stage **Renovation Roadmap** linked to measured areas, electrical counts, and budgets, plus material/consumables/work estimates and comparison across up to 20 variants.
+- Export: project JSON, estimate CSV, wall elevation SVG, and a printable work brief for builders/electricians (HTML/PDF).
 - Offline product import from saved HTML or pasted characteristics, plus an optional local URL reader for supported stores.
 - Undo/redo, autosave to IndexedDB, and explicit project export/import.
 
@@ -76,7 +77,7 @@ npm run dev
 ## Tests
 
 ```sh
-npm test          # 208 app tests
+npm test          # 221 app tests
 npm run test:server # 44 server tests
 npm run build
 ```

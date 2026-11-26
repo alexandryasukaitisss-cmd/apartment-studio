@@ -1,12 +1,31 @@
 export type Point = [number, number];
 export type Surface = 'floor' | 'walls' | 'ceiling';
-export type Kind = 'bed' | 'sofa' | 'table' | 'chair' | 'wardrobe' | 'kitchen' | 'bath' | 'toilet' | 'plant' | 'corner' | 'fridge' | 'shower' | 'vanity' | 'washer' | 'television' | 'oven' | 'microwave' | 'dishwasher' | 'hood' | 'workstation' | 'bookcase' | 'rack' | 'bench' | 'platform' | 'kettlebell';
+export type Kind = 'bed' | 'sofa' | 'table' | 'chair' | 'wardrobe' | 'kitchen' | 'bath' | 'toilet' | 'plant' | 'corner' | 'fridge' | 'shower' | 'vanity' | 'washer' | 'television' | 'oven' | 'microwave' | 'dishwasher' | 'hood' | 'workstation' | 'bookcase' | 'rack' | 'bench' | 'platform' | 'kettlebell' | 'rug' | 'mirror' | 'curtains' | 'nightstand' | 'tvstand' | 'upper_cabinet' | 'pantry' | 'island' | 'person' | 'custom_glb' | 'round_table' | 'slat_partition' | 'tv_stand_mobile' | 'laundry_tower' | 'vanity_desk';
+export interface FinishAllowance {
+  wallCm?: number;
+  floorCm?: number;
+  ceilingCm?: number;
+}
+export const HUMAN_HEIGHT_M = 1.86;
+export const HUMAN_EYE_HEIGHT_M = 1.74;
+export type RenovationStage = 'shell' | 'rough' | 'finishes' | 'furnished';
+export type RoadmapStatus = 'todo' | 'in_progress' | 'done';
+export interface SavedView {
+  id: string;
+  name: string;
+  roomId: string;
+  mode: '3d' | 'walk';
+  pos: [number, number, number];
+  target?: [number, number, number];
+  yaw?: number;
+  pitch?: number;
+}
 export interface Room { id: string; name: string; sourceArea: string; polygon: Point[]; proposed?: boolean }
 export interface Opening { start: number; end: number; kind: 'door' | 'window'; hinge?: 'start' | 'end'; swing?: 1 | -1; sillHeight?: number; headHeight?: number }
 export interface Wall { a: Point; b: Point; rooms: string[]; openings?: Opening[]; proposed?: boolean }
 export interface MaterialQuote { sourceUrl?: string; retailer?: string; price?: number; currency?: string; priceUnit?: 'm2' | 'pack' | 'item' | 'unknown'; packCoverageM2?: number; packPieces?: number; observedAt?: string }
 export interface Material { id: string; name: string; color: string; pattern: 'wood' | 'stone' | 'tile' | 'plain' | 'image'; width: number; height: number; rotation: number; roughness: number; image?: string; quote?: MaterialQuote }
-export interface Furniture { id: string; kind: Kind; roomId: string; x: number; z: number; width: number; depth: number; height: number; elevation?: number; rotation: number; color: string; label?: string; price?: number; currency?: string; sourceUrl?: string }
+export interface Furniture { id: string; kind: Kind; roomId: string; x: number; z: number; width: number; depth: number; height: number; elevation?: number; rotation: number; color: string; label?: string; price?: number; currency?: string; sourceUrl?: string; modelAssetId?: string }
 export type ElectricalType = 'socket' | 'switch' | 'light' | 'network' | 'appliance';
 export interface ElectricalPoint { id: string; roomId: string; type: ElectricalType; x: number; z: number; height: number; label?: string }
 export interface ElectricalConnection { id: string; from: string; to: string }
@@ -43,8 +62,8 @@ export interface WorkRates {
   adhesivePricePerBag?: number;
 }
 export interface RoomMeasurementNote { notes: string; checks: Record<string, boolean> }
-export interface Variant { id: string; name: string; finishes: Record<string, Record<Surface, string>>; wallOverrides?: Record<string, string>; furniture: Furniture[]; electrical: ElectricalLayer; engineering?: EngineeringLayer; workRates?: WorkRates; lighting: { mode: 'day' | 'evening' | 'uniform'; intensity: number; warmth: number; azimuth: number } }
-export interface Project { version: 1; name: string; scale: number; ceilingHeight: number; rooms: Room[]; walls: Wall[]; materials: Material[]; variants: Variant[]; activeVariantId: string; roomNotes?: Record<string, RoomMeasurementNote> }
+export interface Variant { id: string; name: string; finishes: Record<string, Record<Surface, string>>; wallOverrides?: Record<string, string>; furniture: Furniture[]; electrical: ElectricalLayer; engineering?: EngineeringLayer; workRates?: WorkRates; doorColor?: string; doorStyle?: 'framed' | 'hidden'; skirtingColor?: string; skirtingHeight?: number; savedViews?: SavedView[]; roadmap?: Record<string, RoadmapStatus>; lighting: { mode: 'day' | 'evening' | 'uniform'; intensity: number; warmth: number; azimuth: number } }
+export interface Project { version: 1; name: string; scale: number; ceilingHeight: number; rooms: Room[]; walls: Wall[]; materials: Material[]; variants: Variant[]; activeVariantId: string; roomNotes?: Record<string, RoomMeasurementNote>; finishAllowance?: FinishAllowance; storageChecklist?: Record<string, string> }
 const rect = (x: number, z: number, w: number, d: number): Point[] => [[x, z], [x + w, z], [x + w, z + d], [x, z + d]];
 export const A = 3, B = 1.75, N = .8, L = (11.9 + (A - B) * N) / A, Q = L + 3.6 / B + 3.36 / B, R = L - N + 6.39 / (A - B), H = Q + (12.05 + (A - B) * (R - Q)) / A, Z = H - 5.6, X = A + 20.05 / 5.6, C = (11.84 + 5) / 5.6, F = X + C, J = Z + 5 / C;
 export const rooms: Room[] = [
@@ -94,15 +113,38 @@ export const palette: Material[] = [
 let seq = 0;
 export const id = () => globalThis.crypto?.randomUUID?.() ?? `id-${Date.now()}-${++seq}`;
 export function defaultElevation(kind: Kind): number {
-  return kind === 'television' ? 1 : kind === 'hood' ? 1.55 : kind === 'microwave' ? .9 : 0;
+  return kind === 'television' ? 1 : kind === 'hood' ? 1.55 : kind === 'microwave' ? .9 : kind === 'mirror' ? 1.15 : kind === 'upper_cabinet' ? 1.5 : 0;
 }
-export const furnitureDimensions: Record<Kind, [number, number, number]> = { bed: [1.6, 2.1, .65], sofa: [2.2, .9, .85], table: [1.35, .85, .75], chair: [.48, .48, .85], wardrobe: [1.5, .6, 2.2], kitchen: [2.6, .65, .9], bath: [.75, 1.55, .55], toilet: [.4, .65, .5], plant: [.45, .45, 1.2], corner: [2.6, 1.6, .85], fridge: [.6, .65, 1.85], shower: [.9, .9, 2.1], vanity: [.8, .48, .85], washer: [.6, .6, .85], television: [1.23, .08, .72], oven: [.6, .58, .6], microwave: [.5, .4, .3], dishwasher: [.6, .6, .85], hood: [.6, .5, .7], workstation: [1.5, .75, 1.3], bookcase: [.8, .3, 2], rack: [2, 1.15, 2.14], bench: [.55, 1.25, .45], platform: [2, 2, .04], kettlebell: [.2, .2, .3] };
+export const furnitureDimensions: Record<Kind, [number, number, number]> = {
+  bed: [1.6, 2.1, .65], sofa: [2.2, .9, .85], table: [1.35, .85, .75], chair: [.48, .48, .85],
+  wardrobe: [1.5, .6, 2.2], kitchen: [2.6, .65, .9], bath: [.75, 1.55, .55], toilet: [.4, .65, .5],
+  plant: [.45, .45, 1.2], corner: [2.6, 1.6, .85], fridge: [.6, .65, 1.85], shower: [.9, .9, 2.1],
+  vanity: [.8, .48, .85], washer: [.6, .6, .85], television: [1.23, .08, .72], oven: [.6, .58, .6],
+  microwave: [.5, .4, .3], dishwasher: [.6, .6, .85], hood: [.6, .5, .7], workstation: [1.5, .75, 1.3],
+  bookcase: [.8, .3, 2], rack: [2, 1.15, 2.14], bench: [.55, 1.25, .45], platform: [2, 2, .04],
+  kettlebell: [.2, .2, .3], rug: [1.6, 2.3, .02], mirror: [.6, .04, .9], curtains: [2.2, .16, 2.65],
+  nightstand: [.5, .42, .52], tvstand: [1.8, .42, .45], upper_cabinet: [1.2, .35, .72], pantry: [.6, .6, 2.2],
+  island: [1.4, .75, .9], person: [.5, .32, HUMAN_HEIGHT_M], custom_glb: [.8, .8, .8],
+  round_table: [1, 1, .75], slat_partition: [1.2, .08, 2.6], tv_stand_mobile: [1.15, .58, 1.48],
+  laundry_tower: [.6, .62, 1.72], vanity_desk: [.95, .45, 1.35],
+};
 export function minimumFurnitureHeight(kind: Kind): number {
-  return kind === 'platform' ? .01 : .2;
+  return kind === 'platform' || kind === 'rug' ? .01 : .2;
 }
 export function makeFurniture(kind: Kind, roomId: string, x: number, z: number): Furniture {
   const [width, depth, height] = furnitureDimensions[kind];
-  return { id: id(), kind, roomId, x, z, width, depth, height, elevation: defaultElevation(kind), rotation: 0, color: ['sofa', 'bed', 'chair'].includes(kind) ? '#89937c' : '#cfb48e' };
+  const color = ['sofa', 'bed', 'chair'].includes(kind) ? '#89937c'
+    : kind === 'rug' ? '#d8cfc0'
+    : kind === 'curtains' ? '#e7e2d7'
+    : kind === 'person' ? '#4f655d'
+    : kind === 'mirror' ? '#d8dde0'
+    : kind === 'slat_partition' ? '#b89469'
+    : kind === 'tv_stand_mobile' ? '#363c3e'
+    : kind === 'laundry_tower' ? '#eceae4'
+    : kind === 'vanity_desk' ? '#e5dfd3'
+    : kind === 'upper_cabinet' || kind === 'pantry' ? '#ded8cd'
+    : '#cfb48e';
+  return { id: id(), kind, roomId, x, z, width, depth, height, elevation: defaultElevation(kind), rotation: 0, color };
 }
 // Local +Z is the front. The plan uses X/Y=Z and the scene rotates about Y by -rotation.
 export function furnitureFront(rotation: number): Point {
@@ -221,7 +263,7 @@ function distSegment(p: Point, a: Point, b: Point): number {
 }
 export function blocksWalking(f: Furniture): boolean {
   const elevation = f.elevation ?? 0;
-  return f.kind !== 'platform' && elevation < 1.2 && elevation + f.height > .25;
+  return f.kind !== 'platform' && f.kind !== 'rug' && f.kind !== 'person' && f.kind !== 'curtains' && elevation < 1.2 && elevation + f.height > .25;
 }
 export function canWalk(p: Point, project: Project, furniture: Furniture[] = []): boolean {
   if (!project.rooms.some(r => inside(p, r.polygon)))
@@ -265,7 +307,7 @@ export function furnitureOverlaps(p: Project, furniture: Furniture[]): { a: Furn
   const result: { a: Furniture; b: Furniture }[] = [];
   for (let i = 0; i < furniture.length; i++) for (let j = i + 1; j < furniture.length; j++) {
     const a = furniture[i], b = furniture[j];
-    if (a.kind === 'platform' || b.kind === 'platform') continue;
+    if (a.kind === 'platform' || b.kind === 'platform' || a.kind === 'rug' || b.kind === 'rug' || a.kind === 'person' || b.kind === 'person' || a.kind === 'curtains' || b.kind === 'curtains') continue;
     // The bench sits inside the power rack by design; composite sports items are not solids.
     if ((a.kind === 'rack' && b.kind === 'bench') || (a.kind === 'bench' && b.kind === 'rack')) continue;
     const a0 = a.elevation ?? 0, b0 = b.elevation ?? 0;
@@ -286,7 +328,7 @@ function polygonDistance(a: Point[], b: Point[]): number {
 }
 /** Advisory warning when two distinct major floor obstacles leave a narrow gap (< 50 cm by default) that is not a flush join. */
 export function passageWarnings(p: Project, furniture: Furniture[], minClearanceM = .5): { a: Furniture; b: Furniture; roomId: string; clearanceM: number }[] {
-  const minor = new Set<Kind>(['plant', 'chair', 'kettlebell', 'platform', 'rack', 'bench']);
+  const minor = new Set<Kind>(['plant', 'chair', 'kettlebell', 'platform', 'rack', 'bench', 'rug', 'person', 'curtains', 'nightstand', 'mirror']);
   const result: { a: Furniture; b: Furniture; roomId: string; clearanceM: number }[] = [];
   for (let i = 0; i < furniture.length; i++) for (let j = i + 1; j < furniture.length; j++) {
     const a = furniture[i], b = furniture[j];
@@ -320,7 +362,7 @@ export function doorwayObstructions(p: Project, furniture: Furniture[], marginM 
     const ux = (w.b[0] - w.a[0]) / len, uz = (w.b[1] - w.a[1]) / len;
     for (const o of w.openings ?? []) if (o.kind === 'door') {
       const strip = [[o.start, -marginM / p.scale], [o.end, -marginM / p.scale], [o.end, marginM / p.scale], [o.start, marginM / p.scale]].map(([t, n]) => [w.a[0] + ux * t - uz * n, w.a[1] + uz * t + ux * n] as Point);
-      for (const f of furniture) if ((f.elevation ?? 0) < 2.1 && overlaps(strip, furnitureFootprint(f, p.scale)))
+      for (const f of furniture) if (f.kind !== 'rug' && f.kind !== 'person' && f.kind !== 'curtains' && (f.elevation ?? 0) < 2.1 && overlaps(strip, furnitureFootprint(f, p.scale)))
         result.push({ wall, furnitureId: f.id, roomId: f.roomId, kind: f.kind });
     }
   });
@@ -770,8 +812,9 @@ export function validateProject(raw: unknown): Project {
       }
     }
     const fids = new Set<string>();
+    const validKinds = Object.keys(furnitureDimensions);
     for (const f of v.furniture) {
-      if (!f || typeof f.id !== 'string' || fids.has(f.id) || !['bed', 'sofa', 'table', 'chair', 'wardrobe', 'kitchen', 'bath', 'toilet', 'plant', 'corner', 'fridge', 'shower', 'vanity', 'washer', 'television', 'oven', 'microwave', 'dishwasher', 'hood', 'workstation', 'bookcase', 'rack', 'bench', 'platform', 'kettlebell'].includes(f.kind) || !rooms.some(r => r.id === f.roomId) || ![f.x, f.z, f.width, f.depth, f.height, f.rotation].every(Number.isFinite) || f.width < .2 || f.width > 3.5 || f.depth < .01 || f.depth > 3.5 || f.height < minimumFurnitureHeight(f.kind) || f.height > 3 || f.rotation < 0 || f.rotation > 360 || !/^#[\da-f]{6}$/i.test(f.color) || Math.abs(boundFurniture(f, p).x - f.x) > .001 || Math.abs(boundFurniture(f, p).z - f.z) > .001 || !fitsFurniture(f, p))
+      if (!f || typeof f.id !== 'string' || fids.has(f.id) || !validKinds.includes(f.kind) || !rooms.some(r => r.id === f.roomId) || ![f.x, f.z, f.width, f.depth, f.height, f.rotation].every(Number.isFinite) || f.width < .2 || f.width > 3.5 || f.depth < .01 || f.depth > 3.5 || f.height < minimumFurnitureHeight(f.kind) || f.height > 3 || f.rotation < 0 || f.rotation > 360 || !/^#[\da-f]{6}$/i.test(f.color) || Math.abs(boundFurniture(f, p).x - f.x) > .001 || Math.abs(boundFurniture(f, p).z - f.z) > .001 || !fitsFurniture(f, p))
         throw Error('Некорректная мебель или положение за границей комнаты.');
       if (f.label !== undefined && (typeof f.label !== 'string' || f.label.length > 120))
         throw Error('Некорректное название предмета мебели.');
@@ -783,8 +826,34 @@ export function validateProject(raw: unknown): Project {
         try { const u = new URL(f.sourceUrl); if (f.sourceUrl.length > 2000 || !['http:', 'https:'].includes(u.protocol) || u.username || u.password) throw Error(); }
         catch { throw Error('Некорректная ссылка предмета мебели.'); }
       }
+      if (f.modelAssetId !== undefined && (typeof f.modelAssetId !== 'string' || f.modelAssetId.length > 100))
+        throw Error('Некорректная ссылка на 3D-модель.');
       validateFurnitureElevation(f, p.ceilingHeight);
       fids.add(f.id)
+    }
+    if (v.doorColor !== undefined && !/^#[\da-f]{6}$/i.test(v.doorColor))
+      throw Error('Некорректный цвет дверей.');
+    if (v.doorStyle !== undefined && !['framed', 'hidden'].includes(v.doorStyle))
+      throw Error('Некорректный стиль дверей.');
+    if (v.skirtingColor !== undefined && !/^#[\da-f]{6}$/i.test(v.skirtingColor))
+      throw Error('Некорректный цвет плинтуса.');
+    if (v.skirtingHeight !== undefined && (!Number.isFinite(v.skirtingHeight) || v.skirtingHeight < .03 || v.skirtingHeight > .22))
+      throw Error('Некорректная высота плинтуса.');
+    if (v.savedViews !== undefined) {
+      if (!Array.isArray(v.savedViews) || v.savedViews.length > 30)
+        throw Error('Некорректные сохранённые ракурсы.');
+      for (const sv of v.savedViews) {
+        if (!sv || typeof sv.id !== 'string' || typeof sv.name !== 'string' || sv.name.length > 80 || !rooms.some(r => r.id === sv.roomId) || !['3d', 'walk'].includes(sv.mode) || !Array.isArray(sv.pos) || sv.pos.length !== 3 || !sv.pos.every(Number.isFinite))
+          throw Error('Некорректный сохранённый ракурс.');
+      }
+    }
+    if (v.roadmap !== undefined) {
+      if (!v.roadmap || typeof v.roadmap !== 'object' || Array.isArray(v.roadmap))
+        throw Error('Некорректный план этапов ремонта.');
+      for (const st of Object.values(v.roadmap)) {
+        if (!['todo', 'in_progress', 'done'].includes(st))
+          throw Error('Некорректный статус этапа ремонта.');
+      }
     }
     validateElectrical(v.electrical, p);
     if (v.engineering !== undefined) {
@@ -803,6 +872,20 @@ export function validateProject(raw: unknown): Project {
   }
   if (!variantIds.has(p.activeVariantId))
     throw Error('Активный вариант отсутствует.');
+  if (p.finishAllowance !== undefined) {
+    const fa = p.finishAllowance;
+    if (!fa || typeof fa !== 'object' || Array.isArray(fa)) throw Error('Некорректные допуски отделки.');
+    if (fa.wallCm !== undefined && (!Number.isFinite(fa.wallCm) || fa.wallCm < 0 || fa.wallCm > 15)) throw Error('Некорректная толщина штукатурки.');
+    if (fa.floorCm !== undefined && (!Number.isFinite(fa.floorCm) || fa.floorCm < 0 || fa.floorCm > 25)) throw Error('Некорректная толщина стяжки.');
+    if (fa.ceilingCm !== undefined && (!Number.isFinite(fa.ceilingCm) || fa.ceilingCm < 0 || fa.ceilingCm > 30)) throw Error('Некорректный опуск потолка.');
+  }
+  if (p.storageChecklist !== undefined) {
+    if (!p.storageChecklist || typeof p.storageChecklist !== 'object' || Array.isArray(p.storageChecklist))
+      throw Error('Некорректный чеклист хранения.');
+    for (const val of Object.values(p.storageChecklist)) {
+      if (typeof val !== 'string' || val.length > 120) throw Error('Некорректная запись в чеклисте хранения.');
+    }
+  }
   const normalized = structuredClone(p);
   for (const v of normalized.variants)
     v.electrical ??= { points: [], connections: [] };

@@ -205,7 +205,7 @@ export function doorSwingConflicts(project: Project, furniture: Furniture[]): Do
 
   for (const d of doors) {
     for (const f of furniture) {
-      if (f.kind === 'platform' || (f.elevation ?? 0) >= 2.05) continue;
+      if (f.kind === 'platform' || f.kind === 'rug' || f.kind === 'person' || f.kind === 'curtains' || (f.elevation ?? 0) >= 2.05) continue;
       if (d.geom.swingRoomId && f.roomId !== d.geom.swingRoomId) continue;
       if (footprintOverlap(d.geom.sectorPoly, furnitureFootprint(f, project.scale, .02))) {
         conflicts.push({ wallIndex: d.wallIndex, openingIndex: d.openingIndex, furnitureId: f.id, roomId: f.roomId });

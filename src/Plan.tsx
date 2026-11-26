@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { kindNames } from './furnitureCatalog';
-import { type Project, type Variant, type Furniture, type ElectricalPoint, type EngineeringItem, type Point, solidSpans, center, area, electricalNames, electricalSymbols, engineeringNames, engineeringSymbols, furnitureFront, furnitureOverlaps } from './model';
+import { type Project, type Variant, type Furniture, type ElectricalPoint, type EngineeringItem, type Point, solidSpans, center, area, electricalNames, electricalSymbols, engineeringNames, engineeringSymbols, furnitureFront, furnitureOverlaps, roomAt } from './model';
 import { doorSwingConflicts, doorSwingInfo } from './roomMeasures';
+import { lifeZonePolygons, type CameraPose } from './viewpoints';
+import { runLayoutAudit } from './layoutAudit';
 type DragKind = 'furniture' | 'electrical' | 'engineering';
 interface PlanProps {
   project: Project; variant: Variant; selectedRoom: string; selectedFurniture: string | null;
@@ -9,12 +11,17 @@ interface PlanProps {
   onDragStart?: () => void;
   electricalVisible?: boolean; selectedElectrical?: string | null; onElectrical?: (id: string) => void;
   engineeringVisible?: boolean; selectedEngineering?: string | null; onEngineering?: (id: string) => void;
+  lifeZonesVisible?: boolean;
+  auditOverlayVisible?: boolean;
+  deliveryHighlightId?: string | null;
+  cameraPose?: CameraPose | null;
+  onCameraJump?: (x: number, z: number, roomId: string) => void;
   measureMode?: boolean;
   onDrag?: (id: string, x: number, z: number, electrical?: boolean, snap?: boolean, kind?: DragKind) => void;
   onDragEnd?: (id: string, x: number, z: number, electrical?: boolean, snap?: boolean, kind?: DragKind) => void;
   onDragCancel?: () => void;
 }
-export default function Plan({ project, variant, selectedRoom, selectedFurniture, onSelect, onFurniture, mini = false, onDragStart, onDrag, onDragEnd, onDragCancel, electricalVisible = false, selectedElectrical, onElectrical, engineeringVisible = false, selectedEngineering, onEngineering, measureMode = false }: PlanProps) {
+export default function Plan({ project, variant, selectedRoom, selectedFurniture, onSelect, onFurniture, mini = false, onDragStart, onDrag, onDragEnd, onDragCancel, electricalVisible = false, selectedElectrical, onElectrical, engineeringVisible = false, selectedEngineering, onEngineering, lifeZonesVisible = false, auditOverlayVisible = false, deliveryHighlightId = null, cameraPose = null, onCameraJump, measureMode = false }: PlanProps) {
   const svg = useRef<SVGSVGElement>(null);
   const drag = useRef<{ id: string; kind: DragKind; pointerId: number; start: Point; origin: Point; client: Point; moved: boolean } | null>(null);
   const suppressClick = useRef(false);
@@ -94,7 +101,22 @@ export default function Plan({ project, variant, selectedRoom, selectedFurniture
     ...(c.otherDoor ? [`${c.otherDoor.wallIndex}-${c.otherDoor.openingIndex}`] : []),
   ]));
   const heatedRoomIds = new Set((variant.engineering?.heatedFloors ?? []).map(z => z.roomId));
+  const zones = !mini && lifeZonesVisible ? lifeZonePolygons(project, variant) : [];
+  const auditOverlay = !mini && (auditOverlayVisible || deliveryHighlightId) ? runLayoutAudit(project, variant) : null;
+  const highlightedDelivery = auditOverlay?.delivery.find(d => d.furnitureId === (deliveryHighlightId ?? selectedFurniture));
+  const sortedFurniture = [...variant.furniture].sort((a, b) => {
+    const rank = (k: Furniture['kind']) => k === 'rug' || k === 'platform' ? 0 : k === 'person' ? 3 : k === 'upper_cabinet' || k === 'hood' ? 2 : 1;
+    return rank(a.kind) - rank(b.kind);
+  });
   return <svg ref={svg} onPointerDown={e => {
+    if (mini && onCameraJump && e.button === 0) {
+      const pt = point(e.clientX, e.clientY);
+      const room = pt ? roomAt(project, pt) : undefined;
+      if (pt && room) {
+        onCameraJump(pt[0], pt[1], room.id);
+      }
+      return;
+    }
     if (!mini && measureMode && e.button === 0) {
       const pt = point(e.clientX, e.clientY);
       if (!pt) return;
@@ -181,7 +203,13 @@ export default function Plan({ project, variant, selectedRoom, selectedFurniture
         </g>;
       });
     })}
-    {variant.furniture.map(f => <g key={f.id} onPointerDown={e => start(e, f)} className={!mini && onDrag ? 'draggable-furniture' : undefined} transform={`translate(${f.x} ${f.z}) rotate(${f.rotation}) scale(${1 / project.scale})`} onClick={e => {
+    {!mini && lifeZonesVisible && zones.length > 0 && <g className="life-zones-layer" pointerEvents="none">
+      {zones.map(z => {
+        const fill = z.kind === 'tv_cone' ? '#2563eb' : z.kind === 'clearance' ? '#d97706' : '#2f7a62';
+        return <polygon key={z.id} points={z.polygon.map(p => p.join(',')).join(' ')} fill={fill} fillOpacity=".14" stroke={fill} strokeWidth=".024" strokeDasharray=".08 .05"><title>{z.label}</title></polygon>;
+      })}
+    </g>}
+    {sortedFurniture.map(f => <g key={f.id} onPointerDown={e => start(e, f)} className={!mini && onDrag ? 'draggable-furniture' : undefined} transform={`translate(${f.x} ${f.z}) rotate(${f.rotation}) scale(${1 / project.scale})`} onClick={e => {
       e.stopPropagation();
       onSelect(f.roomId);
       onFurniture(f.id)
@@ -193,12 +221,23 @@ export default function Plan({ project, variant, selectedRoom, selectedFurniture
       }
     }}>
       <title>{`${kindNames[f.kind]} · ${Math.round(f.width * 100)} × ${Math.round(f.depth * 100)} см · высота от пола ${Math.round((f.elevation ?? 0) * 100)} см${overlapping.has(f.id) ? ' · пересекается с другим предметом' : ''}`}</title>
-      <rect x={-f.width / 2} y={-f.depth / 2} width={f.width} height={f.depth} rx={f.kind === 'plant' ? f.width / 2 : .05} fill={f.kind === 'television' ? '#26383e' : f.color} stroke={f.id === selectedFurniture ? '#244d3e' : overlapping.has(f.id) ? '#a33b2e' : '#877c69'} strokeWidth={f.id === selectedFurniture || overlapping.has(f.id) ? .055 : .015} strokeDasharray={overlapping.has(f.id) && f.id !== selectedFurniture ? '.12 .07' : undefined} />
-      {f.kind === 'bed' && <>
-        <rect x={-f.width * .46} y={-f.depth * .43} width={f.width * .92} height={f.depth * .21} rx=".035" fill="#eeeade" />
-        <path d={`M${-f.width * .46} ${f.depth * -.15}h${f.width * .92}`} stroke="#ede9df" strokeWidth=".08" />
+      {f.kind === 'person' ? <>
+        <ellipse cx="0" cy="0" rx={f.width * .48} ry={f.depth * .45} fill={f.color} fillOpacity=".82" stroke={f.id === selectedFurniture ? '#173f31' : '#293933'} strokeWidth={f.id === selectedFurniture ? .05 : .02} />
+        <circle cx="0" cy="0" r={Math.min(f.width, f.depth) * .32} fill="#edf3f0" stroke="#293933" strokeWidth=".018" />
+        <path d={`M0 ${f.depth * .32}L0 ${f.depth * .58}`} stroke="#173f31" strokeWidth=".03" />
+        {!mini && <text y={-f.depth * .62} textAnchor="middle" fontSize=".14" fontWeight="700" fill="#173f31">186</text>}
+      </> : f.kind === 'round_table' ? <>
+        <ellipse cx="0" cy="0" rx={f.width / 2} ry={f.depth / 2} fill={f.color} stroke={f.id === selectedFurniture ? '#244d3e' : overlapping.has(f.id) ? '#a33b2e' : '#877c69'} strokeWidth={f.id === selectedFurniture || overlapping.has(f.id) ? .055 : .018} />
+        <circle cx="0" cy="0" r={Math.min(f.width, f.depth) * .12} fill="#877c69" fillOpacity=".35" />
+      </> : <>
+        <rect x={-f.width / 2} y={-f.depth / 2} width={f.width} height={f.depth} rx={f.kind === 'plant' ? f.width / 2 : .05} fill={f.kind === 'television' || f.kind === 'tv_stand_mobile' ? '#26383e' : f.color} fillOpacity={f.kind === 'rug' ? .45 : f.kind === 'upper_cabinet' ? .7 : 1} stroke={f.id === selectedFurniture ? '#244d3e' : overlapping.has(f.id) ? '#a33b2e' : '#877c69'} strokeWidth={f.id === selectedFurniture || overlapping.has(f.id) ? .055 : .015} strokeDasharray={overlapping.has(f.id) && f.id !== selectedFurniture ? '.12 .07' : f.kind === 'rug' || f.kind === 'upper_cabinet' ? '.08 .05' : undefined} />
+        {f.kind === 'slat_partition' && <path d={`M${-f.width * .45} 0H${f.width * .45}`} stroke="#5a452c" strokeWidth={f.depth * .65} strokeDasharray=".04 .06" />}
+        {f.kind === 'bed' && <>
+          <rect x={-f.width * .46} y={-f.depth * .43} width={f.width * .92} height={f.depth * .21} rx=".035" fill="#eeeade" />
+          <path d={`M${-f.width * .46} ${f.depth * -.15}h${f.width * .92}`} stroke="#ede9df" strokeWidth=".08" />
+        </>}
+        {f.kind === 'sofa' && <path d={`M${-f.width * .35} ${-f.depth * .34}h${f.width * .7}v${f.depth * .65}h${-f.width * .7}Z`} stroke="#ede9df" strokeWidth=".05" fill="none" />}
       </>}
-      {f.kind === 'sofa' && <path d={`M${-f.width * .35} ${-f.depth * .34}h${f.width * .7}v${f.depth * .65}h${-f.width * .7}Z`} stroke="#ede9df" strokeWidth=".05" fill="none" />}
     </g>)}
     {!mini && variant.furniture.filter(f => f.id === selectedFurniture).map(f => {
       const [dx, dz] = furnitureFront(f.rotation), length = Math.min(.45, f.depth / 2) / project.scale;
@@ -263,6 +302,44 @@ export default function Plan({ project, variant, selectedRoom, selectedFurniture
           <rect x="-.95" y="-.18" width="1.9" height=".34" rx=".08" fill="#1f5e4b" />
           <text textAnchor="middle" dominantBaseline="central" fontSize=".16" fill="#fff" fontWeight="600">{label}</text>
         </g>}
+      </g>;
+    })()}
+    {!mini && auditOverlay && <g className="audit-overlay" pointerEvents="none">
+      {auditOverlay.dirtyZone && <>
+        <polygon points={auditOverlay.dirtyZone.viewCone.map(p => p.join(',')).join(' ')} fill="#6b5e9c" fillOpacity=".08" stroke="#6b5e9c" strokeWidth=".018" strokeDasharray=".08 .06" />
+        <polygon points={auditOverlay.dirtyZone.polygon.map(p => p.join(',')).join(' ')} fill="#9b6633" fillOpacity=".20" stroke="#8a5625" strokeWidth=".03" strokeDasharray=".09 .05" />
+        <text x={(auditOverlay.dirtyZone.polygon[0][0] + auditOverlay.dirtyZone.polygon[2][0]) / 2} y={(auditOverlay.dirtyZone.polygon[0][1] + auditOverlay.dirtyZone.polygon[2][1]) / 2} textAnchor="middle" fontSize=".15" fontWeight="650" fill="#6d4016">Грязная зона</text>
+      </>}
+      {auditOverlay.plumbing.map(run => {
+        const stroke = run.severity === 'error' ? '#b83227' : run.severity === 'warn' ? '#c27416' : '#2c6b94';
+        const mx = (run.from[0] + run.to[0]) / 2, my = (run.from[1] + run.to[1]) / 2;
+        return <g key={`pl-${run.furnitureId}`}>
+          <line x1={run.from[0]} y1={run.from[1]} x2={run.to[0]} y2={run.to[1]} stroke={stroke} strokeWidth=".032" strokeDasharray=".08 .05" />
+          <text x={mx} y={my - .06} textAnchor="middle" fontSize=".13" fontWeight="650" fill={stroke}>{`${run.distanceM.toFixed(1)}м (+${Math.ceil(run.requiredRiseCm)}см)`}</text>
+        </g>;
+      })}
+      {highlightedDelivery && highlightedDelivery.pathPoints.length >= 2 && (() => {
+        const stroke = highlightedDelivery.status === 'blocked' ? '#b83227' : highlightedDelivery.status === 'tight' ? '#c27416' : '#1f7a54';
+        const dPath = highlightedDelivery.pathPoints.map((pt, idx) => `${idx === 0 ? 'M' : 'L'}${pt[0]} ${pt[1]}`).join(' ');
+        return <g className="delivery-route">
+          <path d={dPath} fill="none" stroke={stroke} strokeWidth=".065" strokeDasharray=".16 .08" strokeLinecap="round" strokeLinejoin="round" />
+          {highlightedDelivery.pathPoints.map((pt, idx) => <circle key={idx} cx={pt[0]} cy={pt[1]} r=".08" fill={stroke} />)}
+        </g>;
+      })()}
+    </g>}
+    {cameraPose && (() => {
+      // Forward vector in plan coordinates from Three.js YXZ yaw: (-sin(yaw), -cos(yaw))
+      const fx = -Math.sin(cameraPose.yaw), fz = -Math.cos(cameraPose.yaw);
+      const halfFov = (cameraPose.mode === 'walk' ? 37 : 26) * Math.PI / 180;
+      const dist = cameraPose.mode === 'walk' ? (mini ? 2.1 : 1.7) : (mini ? 2.8 : 2.2);
+      const rot = (dx: number, dz: number, a: number): Point => [dx * Math.cos(a) - dz * Math.sin(a), dx * Math.sin(a) + dz * Math.cos(a)];
+      const [lx, lz] = rot(fx, fz, -halfFov);
+      const [rx, rz] = rot(fx, fz, halfFov);
+      const x1 = cameraPose.x + lx * dist, y1 = cameraPose.z + lz * dist;
+      const x2 = cameraPose.x + rx * dist, y2 = cameraPose.z + rz * dist;
+      return <g className="camera-cone" pointerEvents="none">
+        <path d={`M${cameraPose.x} ${cameraPose.z}L${x1} ${y1}A${dist} ${dist} 0 0 1 ${x2} ${y2}Z`} fill="#1f6b54" fillOpacity=".24" stroke="#1f6b54" strokeWidth={mini ? .05 : .03} />
+        <circle cx={cameraPose.x} cy={cameraPose.z} r={mini ? .22 : .15} fill="#1f6b54" stroke="#fff" strokeWidth={mini ? .06 : .04} />
       </g>;
     })()}
     {!mini && <>

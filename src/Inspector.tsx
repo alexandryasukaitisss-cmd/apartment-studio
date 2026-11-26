@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import NumberField from './NumberField';
-import { Upload, Plus, ExternalLink, FileCode } from 'lucide-react';
-import { type Project, type Variant, type Surface, type Furniture, type Kind, type Material, type MaterialQuote, type WorkRates, id, makeFurniture, center, boundFurniture, area, roomSize, resizeRoom, setCeilingHeight, setupOffice, doorwayObstructions, minimumFurnitureHeight, addElectricalPoint, MAX_ELECTRICAL_POINTS, furnitureOverlaps, moveFurnitureToRoom, passageWarnings, wallMaterialId, wallOverrideKey } from './model';
+import { Upload, Plus, ExternalLink, FileCode, Box, Sparkles } from 'lucide-react';
+import { type Project, type Variant, type Surface, type Furniture, type Kind, type Material, type MaterialQuote, type WorkRates, type RenovationStage, type RoadmapStatus, id, makeFurniture, center, boundFurniture, area, roomSize, resizeRoom, setCeilingHeight, setupOffice, doorwayObstructions, minimumFurnitureHeight, addElectricalPoint, MAX_ELECTRICAL_POINTS, furnitureOverlaps, moveFurnitureToRoom, passageWarnings, wallMaterialId, wallOverrideKey } from './model';
 import { materialImage } from './textures';
 import { lampBudget } from './sceneLighting';
 import { importPhoto } from './storage';
@@ -13,17 +13,21 @@ import OpeningsEditor from './OpeningsEditor';
 import { parseOfflineProduct, type ImportedProduct } from './offlineProductImport';
 import { roomWalls, wallTitle } from './openings';
 import { defaultPresetForRoom, doorSwingConflicts, furnitureCoordsFromRoomOffset, furnitureRoomClearances, materialSurfaces, measurementChecklistItems, roomAccusative, smartMaterialSurface } from './roomMeasures';
+import { applyStylePreset, stylePresets } from './stylePresets';
+import { saveCustomModel } from './customModels';
+import AuditPanel from './AuditPanel';
 export { catalog, kindNames } from './furnitureCatalog';
-export type InspectorTab = 'finish' | 'furniture' | 'light' | 'sizes' | 'electrical' | 'estimate';
+export type InspectorTab = 'finish' | 'furniture' | 'light' | 'sizes' | 'electrical' | 'estimate' | 'audit';
 const surfaceDisplayNames: Record<Surface, string> = { floor: 'Пол', walls: 'Стены комнаты', ceiling: 'Потолок' };
 
-export default function Inspector({ project, variant, roomId, furnitureId, mutate, onSelectRoom, onSelectFurniture, notify, objectActions, electrical, onOpenElectrical, surfaceSelection, furnitureSelection, tabRequest }: { tabRequest?: { tab: InspectorTab; request: number }; furnitureSelection?: number; surfaceSelection?: { surface: Surface; wallIndex?: number; request: number }; electrical: ElectricalControlsProps; onOpenElectrical: () => void; project: Project; variant: Variant; roomId: string; furnitureId: string | null; mutate: (f: (p: Project) => void) => boolean; objectActions: ObjectActionHandlers; onSelectRoom?: (id: string) => void; onSelectFurniture: (id: string | null) => void; notify: (s: string, error?: boolean) => void }) {
+export default function Inspector({ project, variant, roomId, furnitureId, mutate, onSelectRoom, onSelectFurniture, notify, objectActions, electrical, onOpenElectrical, surfaceSelection, furnitureSelection, tabRequest, onPreviewStage, auditOverlayVisible, onToggleAuditOverlay, deliveryHighlightId, onSelectDeliveryItem }: { tabRequest?: { tab: InspectorTab; request: number }; furnitureSelection?: number; surfaceSelection?: { surface: Surface; wallIndex?: number; request: number }; electrical: ElectricalControlsProps; onOpenElectrical: () => void; project: Project; variant: Variant; roomId: string; furnitureId: string | null; mutate: (f: (p: Project) => void) => boolean; objectActions: ObjectActionHandlers; onSelectRoom?: (id: string) => void; onSelectFurniture: (id: string | null) => void; notify: (s: string, error?: boolean) => void; onPreviewStage?: (stage: RenovationStage) => void; auditOverlayVisible?: boolean; onToggleAuditOverlay?: (v: boolean) => void; deliveryHighlightId?: string | null; onSelectDeliveryItem?: (id: string | null) => void }) {
   const [tab, setTab] = useState<InspectorTab>('finish');
   useEffect(() => { if (tabRequest) setTab(tabRequest.tab) }, [tabRequest]);
   const [surface, setSurface] = useState<Surface>('floor');
   const [accentWallIndex, setAccentWallIndex] = useState<number | null>(null);
   const [preset, setPreset] = useState(() => defaultPresetForRoom(roomId));
   const upload = useRef<HTMLInputElement>(null);
+  const glbUpload = useRef<HTMLInputElement>(null);
   const room = project.rooms.find(r => r.id === roomId)!;
   const wallsOfRoom = roomWalls(project, roomId);
   const effectiveAccentWall = surface === 'walls' && accentWallIndex !== null && wallsOfRoom.some(w => w.index === accentWallIndex) ? accentWallIndex : null;
@@ -126,10 +130,28 @@ export default function Inspector({ project, variant, roomId, furnitureId, mutat
   const updateWorkRates = (rates: WorkRates) => mutate(p => {
     active(p).workRates = rates;
   });
+  const updateRoadmapStatus = (stepId: string, status: RoadmapStatus) => mutate(p => {
+    const v = active(p);
+    v.roadmap ??= {};
+    v.roadmap[stepId] = status;
+  });
+  async function uploadGlb(file: File) {
+    try {
+      const saved = await saveCustomModel(file);
+      const [x, z] = center(room);
+      const f = boundFurniture({ ...makeFurniture('custom_glb', roomId, x, z), label: saved.name, modelAssetId: saved.assetId }, project);
+      if (mutate(p => active(p).furniture.push(f))) {
+        onSelectFurniture(f.id);
+        notify(`3D-модель «${saved.name}» добавлена. Настройте ширину, глубину и высоту справа.`);
+      }
+    } catch (e) {
+      notify((e as Error).message, true);
+    }
+  }
 
   return <aside className="inspector">
     <h2>
-      {tab === 'finish' ? 'Отделка' : tab === 'furniture' ? 'Мебель и техника' : tab === 'light' ? 'Освещение' : tab === 'electrical' ? 'Электрика и инженерия' : tab === 'estimate' ? 'Расход и смета' : 'Размеры квартиры'}
+      {tab === 'finish' ? 'Отделка' : tab === 'furniture' ? 'Мебель и техника' : tab === 'light' ? 'Освещение' : tab === 'electrical' ? 'Электрика и инженерия' : tab === 'estimate' ? 'Расход и смета' : tab === 'audit' ? 'Аудит планировки' : 'Размеры квартиры'}
     </h2>
     <p className="room-caption">
       {room.name}
@@ -144,8 +166,10 @@ export default function Inspector({ project, variant, roomId, furnitureId, mutat
       <button className={tab === 'sizes' ? 'active' : ''} onClick={() => setTab('sizes')}>Размеры</button>
       <button className={tab === 'electrical' ? 'active' : ''} onClick={() => { setTab('electrical'); onOpenElectrical() }}>Электрика</button>
       <button className={tab === 'estimate' ? 'active' : ''} onClick={() => setTab('estimate')}>Смета</button>
+      <button className={tab === 'audit' ? 'active' : ''} onClick={() => setTab('audit')}>Аудит</button>
     </div>
-    {tab === 'estimate' && <EstimatePanel project={project} variant={variant} roomId={roomId} surface={surface} onSurface={setSurface} onQuote={quote => updateMaterial({ quote: { ...quote, observedAt: undefined } }, surface)} onWorkRates={updateWorkRates} onNotify={msg => notify(msg)} />}
+    {tab === 'audit' && <AuditPanel project={project} variant={variant} roomId={roomId} mutate={mutate} notify={notify} onSelectRoom={onSelectRoom} onSelectFurniture={onSelectFurniture} auditOverlayVisible={auditOverlayVisible} onToggleAuditOverlay={onToggleAuditOverlay} deliveryHighlightId={deliveryHighlightId} onSelectDeliveryItem={onSelectDeliveryItem} onOpenEngineering={() => { setTab('electrical'); electrical.engineering?.onVisible(true); }} />}
+    {tab === 'estimate' && <EstimatePanel project={project} variant={variant} roomId={roomId} surface={surface} onSurface={setSurface} onQuote={quote => updateMaterial({ quote: { ...quote, observedAt: undefined } }, surface)} onWorkRates={updateWorkRates} onRoadmapStatus={updateRoadmapStatus} onPreviewStage={onPreviewStage} onNotify={msg => notify(msg)} />}
     {tab === 'electrical' && <ElectricalControls {...electrical} />}
     {tab === 'finish' && <>
       <div className="surface-tabs">
@@ -238,6 +262,45 @@ export default function Inspector({ project, variant, roomId, furnitureId, mutat
           </button>)}
         </div>
       </details>}
+      <details className="style-presets-block">
+        <summary><Sparkles size={14} /> Готовые стили всей квартиры (1 клик)</summary>
+        <p className="small-note">Применяет согласованную палитру полов, стен, дверей и плинтуса ко всем комнатам сразу. Отменяется одним ⌘Z.</p>
+        <div className="style-preset-list">
+          {stylePresets.map(sp => <button key={sp.id} className="style-preset-card" onClick={() => {
+            if (mutate(p => { applyStylePreset(p, sp.id); })) {
+              setAccentWallIndex(null);
+              notify(`Стиль «${sp.name}» применён ко всей квартире (⌘Z — вернуть прежний).`);
+            }
+          }}>
+            <div className="style-dots">{sp.swatches.map((hex, idx) => <span key={idx} style={{ background: hex }} />)}</div>
+            <div>
+              <strong>{sp.name}</strong>
+              <small>{sp.subtitle}</small>
+            </div>
+          </button>)}
+        </div>
+      </details>
+      <details className="doors-skirting-block">
+        <summary>Двери и плинтус в 3D</summary>
+        <div className="section-fields">
+          <label className="field">
+            <span>Стиль дверей</span>
+            <select aria-label="Стиль дверей" value={variant.doorStyle ?? 'framed'} onChange={e => mutate(p => { active(p).doorStyle = e.target.value as 'framed' | 'hidden'; })}>
+              <option value="framed">С наличниками</option>
+              <option value="hidden">Скрытого монтажа</option>
+            </select>
+          </label>
+          <label className="field">
+            <span>Цвет дверей</span>
+            <input aria-label="Цвет дверей" type="color" value={variant.doorColor ?? '#dfd8cc'} onChange={e => mutate(p => { active(p).doorColor = e.target.value; })} />
+          </label>
+          <label className="field">
+            <span>Цвет плинтуса</span>
+            <input aria-label="Цвет плинтуса" type="color" value={variant.skirtingColor ?? '#ede9e0'} onChange={e => mutate(p => { active(p).skirtingColor = e.target.value; })} />
+          </label>
+          <NumberField label="Высота плинтуса" value={(variant.skirtingHeight ?? .08) * 100} min={3} max={22} onChange={v => mutate(p => { active(p).skirtingHeight = v / 100; })} />
+        </div>
+      </details>
 
     </>}
     {tab === 'furniture' && <>
@@ -269,6 +332,15 @@ export default function Inspector({ project, variant, roomId, furnitureId, mutat
         <Plus size={16} />
         Добавить предмет
       </button>
+      <button className="wide outline" onClick={() => glbUpload.current?.click()}>
+        <Box size={16} />
+        Загрузить свою 3D-модель (.glb / .gltf)
+      </button>
+      <input ref={glbUpload} hidden type="file" accept=".glb,.gltf,model/gltf-binary,model/gltf+json" aria-label="Загрузить 3D-модель GLB" onChange={e => {
+        const file = e.target.files?.[0];
+        if (file) void uploadGlb(file);
+        e.target.value = '';
+      }} />
       <div className="object-list">
         {variant.furniture.filter(f => f.roomId === roomId).map(f => <button key={f.id} className={f.id === furnitureId ? 'active' : ''} onClick={() => onSelectFurniture(f.id)}>
           {f.label || kindNames[f.kind]}

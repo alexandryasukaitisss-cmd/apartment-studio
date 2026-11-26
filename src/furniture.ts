@@ -340,6 +340,175 @@ export function furnitureMesh(f:Furniture):THREE.Group {
       }
       break;
     }
+    case 'rug': {
+      const border=new THREE.MeshStandardMaterial({color:new THREE.Color(f.color).multiplyScalar(.86),roughness:.96});materials.push(border);
+      box(W,H,D,0,H/2,0,border,0);
+      box(W*.86,H*.6,D*.86,0,H*.72,0,main,0);
+      break;
+    }
+    case 'mirror': {
+      const frame=Math.min(W,H)*.035;
+      const mirrorGlass=new THREE.MeshStandardMaterial({color:'#dce5e8',roughness:.06,metalness:.88,envMapIntensity:1.2});materials.push(mirrorGlass);
+      const halo=new THREE.MeshStandardMaterial({color:'#fff3d6',emissive:'#ffe6b0',emissiveIntensity:.75,roughness:.5});materials.push(halo);
+      box(W*.96,H*.96,D*.32,0,H/2,-D*.32,halo,0);
+      box(W,H,D*.45,0,H/2,0,metal,Math.min(W,D)*.02);
+      box(W-frame*2,H-frame*2,D*.55,0,H/2,D*.22,mirrorGlass,0);
+      break;
+    }
+    case 'curtains': {
+      const sheer=new THREE.MeshStandardMaterial({color:'#faf8f3',transparent:true,opacity:.48,roughness:.95,depthWrite:false});materials.push(sheer);
+      const drape=new THREE.MeshStandardMaterial({color:f.color,roughness:.92});materials.push(drape);
+      box(W,H*.014,D*.16,0,H*.993,0,metal,0);
+      box(W*.64,H*.97,D*.18,0,H*.49,-D*.18,sheer,0);
+      for(const side of [-1,1]){
+        for(let i=0;i<3;i++){
+          const px=side*(W*.31+i*W*.072);
+          box(W*.068,H*.98,D*(i%2===0?.78:.52),px,H*.495,D*.12,drape,Math.min(W,D)*.03);
+        }
+      }
+      break;
+    }
+    case 'nightstand': {
+      legs(H*.18);
+      box(W,H*.78,D,0,H*.56,0,main);
+      box(W*1.02,H*.05,D*1.02,0,H*.975,0,wood);
+      for(const y of [H*.38,H*.72]){
+        box(W*.9,H*.28,D*.03,0,y,D*.5,cream,0);
+        box(W*.22,H*.03,D*.06,0,y,D*.53,metal,0);
+      }
+      break;
+    }
+    case 'tvstand': {
+      legs(H*.22);
+      box(W,H*.72,D,0,H*.58,0,main);
+      box(W*1.01,H*.06,D*1.01,0,H*.97,0,wood);
+      box(W*.32,H*.58,D*.04,-W*.32,H*.58,D*.5,cream,0);
+      box(W*.32,H*.58,D*.04,W*.32,H*.58,D*.5,cream,0);
+      box(W*.30,H*.50,D*.86,0,H*.58,D*.08,dark,0);
+      box(W*.28,H*.03,D*.82,0,H*.58,D*.08,wood,0);
+      break;
+    }
+    case 'upper_cabinet': {
+      const doors=Math.max(1,Math.round(W/.55)),dw=W/doors;
+      box(W,H,D*.94,0,H/2,-D*.03,main,0);
+      for(let i=0;i<doors;i++){
+        box(dw*.95,H*.96,D*.06,-W/2+dw*(i+.5),H/2,D*.47,cream,0);
+      }
+      const led=new THREE.MeshStandardMaterial({color:'#fff4da',emissive:'#ffe7b5',emissiveIntensity:.85});materials.push(led);
+      box(W*.92,H*.025,D*.08,0,H*.015,D*.26,led,0);
+      break;
+    }
+    case 'pantry': {
+      box(W,H,D*.94,0,H/2,-D*.03,main,0);
+      box(W*.95,H*.33,D*.06,0,H*.19,D*.47,cream,0);
+      box(W*.92,H*.27,D*.06,0,H*.50,D*.47,dark,0);
+      box(W*.70,H*.025,D*.07,0,H*.61,D*.51,metal,0);
+      box(W*.92,H*.15,D*.06,0,H*.72,D*.47,dark,0);
+      box(W*.95,H*.18,D*.06,0,H*.90,D*.47,cream,0);
+      break;
+    }
+    case 'island': {
+      box(W*.92,H*.10,D*.82,0,H*.05,0,dark,0);
+      box(W*.95,H*.84,D*.86,0,H*.52,0,main,0);
+      box(W,H*.06,D,0,H*.97,0,white,0);
+      const slats=Math.max(4,Math.round(W/.12));
+      for(let i=0;i<slats;i++){
+        const x=-W*.44+i*(W*.88/(slats-1));
+        box(W*.025,H*.82,D*.04,x,H*.52,D*.44,wood,0);
+      }
+      break;
+    }
+    case 'person': {
+      // Proportionate 186 cm human scale silhouette (translucent so sightlines remain readable).
+      const body=new THREE.MeshStandardMaterial({color:f.color,transparent:true,opacity:.76,roughness:.65});materials.push(body);
+      const accent=new THREE.MeshStandardMaterial({color:'#d8e3de',emissive:'#9cb8ad',emissiveIntensity:.25,roughness:.5});materials.push(accent);
+      // Shoes & legs (0 .. 0.48 H)
+      for(const side of [-1,1]){
+        box(W*.22,H*.045,D*.62,side*W*.17,H*.0225,D*.10,dark,Math.min(W,D)*.04);
+        cylinder(W*.115,H*.46,side*W*.17,H*.27,0,body);
+      }
+      // Pelvis & torso (0.48 .. 0.81 H)
+      box(W*.66,H*.10,D*.58,0,H*.52,0,body,Math.min(W,D)*.08);
+      box(W*.78,H*.25,D*.62,0,H*.685,0,body,Math.min(W,D)*.10);
+      // Shoulders & arms
+      for(const side of [-1,1]){
+        cylinder(W*.085,H*.34,side*W*.44,H*.61,0,body);
+      }
+      // Neck & head (0.81 .. 1.00 H; eyes sit at ~0.935 H = 174 cm for 186 cm person)
+      cylinder(W*.11,H*.055,0,H*.835,0,body);
+      ellipsoid(W*.34,H*.13,D*.66,0,H*.935,0,body);
+      // Subtle eye-level visor band facing +Z (front)
+      box(W*.30,H*.016,D*.12,0,H*.935,D*.32,accent,0);
+      break;
+    }
+    case 'custom_glb': {
+      const ghost=new THREE.MeshStandardMaterial({color:f.color,roughness:.7,transparent:true,opacity:.82});materials.push(ghost);
+      box(W,H,D,0,H/2,0,ghost,Math.min(W,D)*.02);
+      box(W*.86,H*.03,D*.86,0,H*.985,0,metal,0);
+      break;
+    }
+    case 'round_table': {
+      const top=cylinder(.5,H*.055,0,H*.972,0,main);top.scale.set(W,1,D);
+      const col=cylinder(.12,H*.90,0,H*.48,0,wood);col.scale.set(W,1,D);
+      const foot=cylinder(.30,H*.04,0,H*.02,0,dark);foot.scale.set(W,1,D);
+      break;
+    }
+    case 'slat_partition': {
+      const count=Math.max(4,Math.round(W/.095));
+      const slatW=Math.min(.045,W/(count*2));
+      box(W,H*.018,D,0,H*.009,0,dark,0);
+      box(W,H*.018,D,0,H*.991,0,dark,0);
+      for(let i=0;i<count;i++){
+        const x=-W/2+slatW/2+(count>1?i*(W-slatW)/(count-1):0);
+        box(slatW,H*.965,D*.92,x,H*.5,0,main,0);
+      }
+      break;
+    }
+    case 'tv_stand_mobile': {
+      // Wheeled floor base + twin upright poles + media shelf + TV panel
+      box(W*.78,H*.025,D*.92,0,H*.045,0,dark,0);
+      for(const [x,z] of [[-W*.36,-D*.42],[W*.36,-D*.42],[-W*.36,D*.42],[W*.36,D*.42]])
+        cylinder(Math.min(W,D)*.045,H*.035,x,H*.0175,z,metal);
+      for(const x of [-W*.18,W*.18])
+        cylinder(Math.min(W,D)*.03,H*.82,x,H*.46,-D*.12,metal);
+      box(W*.60,H*.022,D*.48,0,H*.38,D*.06,wood,0);
+      // Screen
+      box(W,H*.44,D*.11,0,H*.78,D*.02,dark,0);
+      const screen=new THREE.MeshStandardMaterial({color:'#1d272c',roughness:.16,metalness:.25});materials.push(screen);
+      box(W*.95,H*.40,D*.04,0,H*.78,D*.08,screen,0);
+      break;
+    }
+    case 'laundry_tower': {
+      // Stacked washer + dryer column
+      box(W,H*.49,D,0,H*.245,0,white,Math.min(W,D)*.025);
+      box(W,H*.02,D*.96,0,H*.50,0,metal,0);
+      box(W,H*.49,D,0,H*.755,0,white,Math.min(W,D)*.025);
+      for(const cy of [H*.22,H*.73]){
+        const ring=add(new THREE.TorusGeometry(W*.27,W*.035,8,24),metal,0,cy,D*.515);
+        ring.scale.y=Math.min(1,(H*.48)/W);
+        ellipsoid(W*.46,Math.min(W,H*.45)*.46,D*.05,0,cy,D*.525,dark);
+      }
+      box(W*.92,H*.065,D*.025,0,H*.44,D*.505,main,0);
+      box(W*.92,H*.065,D*.025,0,H*.95,D*.505,main,0);
+      break;
+    }
+    case 'vanity_desk': {
+      // Slim dressing table + round mirror + tucked pouf
+      const tH=H*.56;
+      for(const [x,z] of [[-W*.45,-D*.42],[W*.45,-D*.42],[-W*.45,D*.18],[W*.45,D*.18]])
+        cylinder(Math.min(W,D)*.03,tH*.84,x,tH*.42,z,metal);
+      box(W,tH*.18,D*.66,0,tH*.91,-D*.12,main,Math.min(W,D)*.02);
+      box(W*.42,tH*.02,D*.03,-W*.24,tH*.91,D*.22,metal,0);
+      box(W*.42,tH*.02,D*.03,W*.24,tH*.91,D*.22,metal,0);
+      // Round illuminated mirror above table
+      const mirrorGlass=new THREE.MeshStandardMaterial({color:'#dce5e8',roughness:.06,metalness:.88,envMapIntensity:1.2});materials.push(mirrorGlass);
+      const mr=Math.min(W*.34,H*.21);
+      const disc=cylinder(mr,D*.04,0,tH+H*.22,-D*.38,metal);disc.rotation.x=Math.PI/2;
+      const glassDisc=cylinder(mr*.9,D*.05,0,tH+H*.22,-D*.36,mirrorGlass);glassDisc.rotation.x=Math.PI/2;
+      // Pouf tucked in front (+Z)
+      const pouf=cylinder(Math.min(W,D)*.34,tH*.58,0,tH*.29,D*.24,cream);pouf.scale.z=.72;
+      break;
+    }
   }
   // Preserve the declared overall envelope even for custom proportions. All
   // geometry remains model-owned so the Scene's disposal traversal owns it.

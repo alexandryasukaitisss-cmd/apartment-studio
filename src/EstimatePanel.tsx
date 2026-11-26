@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Download, Printer } from 'lucide-react';
-import { type MaterialQuote, type Project, type Surface, type Variant, type WorkRates } from './model';
+import { type MaterialQuote, type Project, type RenovationStage, type RoadmapStatus, type Surface, type Variant, type WorkRates } from './model';
 import { adhesiveEstimate, compareVariants, coveringEstimate, estimateVariant, furnitureBudget, paintEstimate, projectQuantities, roomQuantities, skirtingEstimate, surfaceArea, wallpaperEstimate, worksBudget } from './materialEstimate';
 import { buildEstimateCsv, buildRenovationBriefHtml } from './renovationExport';
+import RoadmapPanel from './RoadmapPanel';
 
 function downloadBlob(content: string, mime: string, filename: string) {
   const blob = new Blob([content], { type: mime });
@@ -40,7 +41,7 @@ const names: Record<Surface, string> = { floor: 'Пол', walls: 'Стены', c
 const fmt = (n: number) => n.toLocaleString('ru-RU', { maximumFractionDigits: 2 });
 const fmtMap = (map: Record<string, number>) => Object.entries(map).map(([c, v]) => `${fmt(v)} ${c}`).join(' + ') || '—';
 
-export default function EstimatePanel({ project, variant, roomId, surface, onSurface, onQuote, onWorkRates, onNotify }: { project: Project; variant: Variant; roomId: string; surface: Surface; onSurface: (s: Surface) => void; onQuote: (q: MaterialQuote) => void; onWorkRates?: (rates: WorkRates) => void; onNotify?: (text: string) => void }) {
+export default function EstimatePanel({ project, variant, roomId, surface, onSurface, onQuote, onWorkRates, onRoadmapStatus, onPreviewStage, onNotify }: { project: Project; variant: Variant; roomId: string; surface: Surface; onSurface: (s: Surface) => void; onQuote: (q: MaterialQuote) => void; onWorkRates?: (rates: WorkRates) => void; onRoadmapStatus?: (stepId: string, status: RoadmapStatus) => void; onPreviewStage?: (stage: RenovationStage) => void; onNotify?: (text: string) => void }) {
   const [reserve, setReserve] = useState(10);
   const [localRates, setLocalRates] = useState<WorkRates>(variant.workRates ?? {});
   const rates = onWorkRates ? (variant.workRates ?? {}) : localRates;
@@ -156,6 +157,7 @@ export default function EstimatePanel({ project, variant, roomId, surface, onSur
         <span>Мебель и техника ({furn.priced} из {furn.totalItems})</span><b>{fmtMap(furn.subtotals)}</b>
       </div>
     </details>
+    <RoadmapPanel project={project} variant={variant} reserve={reserve} onSetStatus={onRoadmapStatus} onPreviewStage={onPreviewStage} />
     <details><summary>Сравнение вариантов ({variantsComparison.length})</summary>
       <p className="small-note">Сводка известного бюджета по всем вариантам дизайна: покрытия (включая акцентные стены), мебель/техника и работы.</p>
       {variantsComparison.map(v => <div className="estimate-row" key={v.id}>
